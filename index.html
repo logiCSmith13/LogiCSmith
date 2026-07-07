@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LogiCSmith — Talk to your AI tutor</title>
-  <meta name="description" content="LogiCSmith is a voice AI tutor for students 12–18. Stuck on homework? Just say it out loud and get help, step by step." />
+  <title>LogiCSmith — Ask your tutor</title>
+  <meta name="description" content="Talk to LogiCSmith, your AI voice tutor. Set up your profile once and get help that fits your grade level and how you learn." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -13,163 +13,134 @@
 </head>
 <body>
 
-  <!-- ======= Nav ======= -->
-  <header class="nav">
-    <div class="container nav-inner">
-      <a class="brand" href="#top">
+  <header class="topbar">
+    <div class="topbar-inner">
+      <span class="brand">
         <span class="brand-mark">⚒️</span>
         <span class="brand-name">Logi<span class="brand-accent">C</span>Smith</span>
-      </a>
-      <nav class="nav-links">
-        <a href="#subjects">Subjects</a>
-        <a href="#how">How it works</a>
-        <a href="#pricing">Pricing</a>
-        <a class="btn btn-small" href="#tutor">🎙️ Talk now</a>
-      </nav>
+      </span>
+      <div class="topbar-right">
+        <span class="usage-pill" id="usage-pill" hidden></span>
+        <button class="btn-ghost-small" id="edit-profile-btn" hidden>👤 My profile</button>
+      </div>
     </div>
   </header>
 
-  <!-- ======= Hero with embedded tutor ======= -->
-  <main id="top">
-    <section class="hero" id="tutor">
-      <div class="container hero-inner">
-        <div class="hero-copy">
-          <p class="eyebrow">Your AI voice tutor</p>
-          <h1>Stuck on homework?<br /><span class="gradient-text">Just say it out loud.</span></h1>
-          <p class="lede">
-            LogiCSmith is a tutor you can talk to. Ask about math, science,
-            essays — anything. It helps you figure it out, step by step.
-          </p>
-          <ul class="hero-points">
-            <li>✅ Free to try — no sign-up</li>
-            <li>✅ No typing, just talk</li>
-            <li>✅ Hints, not answer-dumps</li>
-          </ul>
-        </div>
-        <div class="tutor-panel" id="tutor-panel">
-          <div class="tutor-panel-header">
-            <span class="tutor-dot"></span> Your tutor is ready
-          </div>
-          <div class="tutor-panel-body" id="tutor-widget-slot">
-            <!-- ElevenLabs widget is injected here by script.js -->
-          </div>
-          <p class="tutor-panel-tip">Press start, allow your mic, and say hi 👋</p>
-        </div>
+  <main class="app">
+
+    <!-- ===== One-time profile setup ===== -->
+    <section id="profile-view" hidden>
+      <div class="panel profile-panel">
+        <h1 class="panel-title" id="profile-title">Hi! Let's set up your tutor. 👋</h1>
+        <p class="panel-sub">Answer a few quick questions so your tutor teaches at <em>your</em> level. You only do this once — you can change it later.</p>
+
+        <form id="profile-form">
+          <label class="field">
+            <span class="field-label">What should your tutor call you?</span>
+            <input type="text" id="f-name" maxlength="30" placeholder="A nickname is fine — no last names!" required />
+          </label>
+
+          <label class="field">
+            <span class="field-label">What grade are you in?</span>
+            <select id="f-grade" required>
+              <option value="" disabled selected>Pick your grade</option>
+              <option>6th grade</option>
+              <option>7th grade</option>
+              <option>8th grade</option>
+              <option>9th grade</option>
+              <option>10th grade</option>
+              <option>11th grade</option>
+              <option>12th grade</option>
+              <option>College</option>
+            </select>
+          </label>
+
+          <fieldset class="field">
+            <span class="field-label">Which subjects do you want help with?</span>
+            <div class="check-chips" id="f-subjects">
+              <label><input type="checkbox" value="Math" /><span>➗ Math</span></label>
+              <label><input type="checkbox" value="Science" /><span>🧪 Science</span></label>
+              <label><input type="checkbox" value="Writing" /><span>✍️ Writing</span></label>
+              <label><input type="checkbox" value="Coding" /><span>💻 Coding</span></label>
+              <label><input type="checkbox" value="History" /><span>🌍 History</span></label>
+              <label><input type="checkbox" value="Languages" /><span>🗣️ Languages</span></label>
+            </div>
+          </fieldset>
+
+          <label class="field">
+            <span class="field-label">How confident do you feel in those subjects?</span>
+            <select id="f-confidence" required>
+              <option value="" disabled selected>Be honest — no judgment</option>
+              <option>Just starting — explain everything simply</option>
+              <option>Getting there — I know the basics</option>
+              <option>Pretty confident — challenge me</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span class="field-label">How do you like to learn?</span>
+            <select id="f-style" required>
+              <option value="" disabled selected>Pick what works for you</option>
+              <option>Show me an example first, then let me try</option>
+              <option>Walk me through it step by step</option>
+              <option>Quiz me and correct my mistakes</option>
+              <option>Give me the big picture first, then details</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span class="field-label">Anything else your tutor should know? <em>(optional)</em></span>
+            <textarea id="f-notes" rows="2" maxlength="200" placeholder="e.g. I have a big algebra test Friday, I mix up fractions…"></textarea>
+          </label>
+
+          <button type="submit" class="btn-primary btn-full">Start learning 🚀</button>
+          <p class="privacy-note">Your profile is saved only on this device — it never goes to a server.</p>
+        </form>
       </div>
     </section>
 
-    <!-- ======= Try asking strip ======= -->
-    <section class="try-strip">
-      <div class="container">
-        <p class="try-label">Not sure what to say? Try one of these:</p>
-        <div class="chips">
-          <span class="chip">"Explain photosynthesis like I'm 12"</span>
-          <span class="chip">"Help me solve 3x + 5 = 20"</span>
-          <span class="chip">"Is my thesis statement any good?"</span>
-          <span class="chip">"Quiz me on World War II"</span>
-          <span class="chip">"Why does my code loop forever?"</span>
-          <span class="chip">"How do I study for a math test?"</span>
-        </div>
+    <!-- ===== Chat / tutor view ===== -->
+    <section id="chat-view" hidden>
+      <h1 class="greeting" id="greeting">Hey! What are we working on?</h1>
+
+      <div class="panel tutor-panel">
+        <div class="tutor-panel-body" id="tutor-widget-slot"></div>
+      </div>
+
+      <div class="usage-bar-wrap" id="usage-bar-wrap" hidden>
+        <div class="usage-bar"><div class="usage-bar-fill" id="usage-bar-fill"></div></div>
+        <span class="usage-bar-label" id="usage-bar-label"></span>
+      </div>
+
+      <div class="suggestions">
+        <p class="suggestions-label">Not sure how to start? Tap one to copy it, then say it:</p>
+        <div class="chips" id="chips"></div>
       </div>
     </section>
 
-    <!-- ======= Subjects ======= -->
-    <section class="section" id="subjects">
-      <div class="container">
-        <h2>Every subject. One tutor.</h2>
-        <p class="section-lede">Whatever class you're in, LogiCSmith has your back.</p>
-        <div class="grid subjects-grid">
-          <div class="card"><span class="card-emoji">➗</span><h3>Math</h3><p>From fractions to calculus, one step at a time.</p></div>
-          <div class="card"><span class="card-emoji">🧪</span><h3>Science</h3><p>Biology, chemistry, physics — explained until it clicks.</p></div>
-          <div class="card"><span class="card-emoji">✍️</span><h3>Writing</h3><p>Plan essays, fix grammar, make your ideas shine.</p></div>
-          <div class="card"><span class="card-emoji">💻</span><h3>Coding</h3><p>Find the bug, understand the logic, fix it yourself.</p></div>
-          <div class="card"><span class="card-emoji">🌍</span><h3>History</h3><p>Dates, causes, and tricks to actually remember them.</p></div>
-          <div class="card"><span class="card-emoji">🗣️</span><h3>Languages</h3><p>Practice speaking without feeling embarrassed.</p></div>
-        </div>
+    <!-- ===== Daily limit reached ===== -->
+    <section id="limit-view" hidden>
+      <div class="panel limit-panel">
+        <span class="limit-emoji">🌙</span>
+        <h1 class="panel-title">That's your tutoring time for today!</h1>
+        <p class="panel-sub">Great work today. Your minutes reset at midnight — come back tomorrow and pick up where you left off.</p>
+        <p class="panel-sub small">Tip: review what you learned before bed. It helps it stick!</p>
       </div>
     </section>
 
-    <!-- ======= How it works ======= -->
-    <section class="section section-alt" id="how">
-      <div class="container">
-        <h2>How it works</h2>
-        <p class="section-lede">Three steps. That's it.</p>
-        <div class="grid steps-grid">
-          <div class="step"><span class="step-num">1</span><h3>Press start</h3><p>Hit the button in the tutor box up top and allow your mic.</p></div>
-          <div class="step"><span class="step-num">2</span><h3>Say what's confusing</h3><p>Read the problem out loud, like you're asking a friend.</p></div>
-          <div class="step"><span class="step-num">3</span><h3>Figure it out together</h3><p>Your tutor gives hints and questions so YOU crack it — and remember it on test day.</p></div>
-        </div>
-      </div>
-    </section>
+    <!-- ===== Setup banner (only if agent ID missing in config.js) ===== -->
+    <div id="setup-banner" hidden>
+      <strong>⚙️ Almost there!</strong> Add your ElevenLabs <code>agent-id</code> in
+      <code>config.js</code> to activate the voice tutor. See <code>README.md</code>.
+    </div>
 
-    <!-- ======= Pricing ======= -->
-    <section class="section" id="pricing">
-      <div class="container">
-        <h2>Simple pricing</h2>
-        <p class="section-lede">Start free. Upgrade when you need more time.</p>
-        <div class="pricing-grid">
-          <div class="price-card">
-            <h3>Free</h3>
-            <p class="price"><span class="price-num">$0</span>/month</p>
-            <ul>
-              <li>✅ 15 minutes of tutoring a day</li>
-              <li>✅ All subjects</li>
-              <li>✅ No sign-up needed</li>
-            </ul>
-            <a class="btn btn-ghost btn-full" href="#tutor">Start talking</a>
-          </div>
-          <div class="price-card price-card-featured">
-            <span class="price-badge">Most popular</span>
-            <h3>Premium</h3>
-            <p class="price"><span class="price-num">$9</span>/month</p>
-            <ul>
-              <li>✅ Unlimited tutoring time</li>
-              <li>✅ Remembers what you're working on</li>
-              <li>✅ Practice quizzes made for you</li>
-              <li>✅ Progress report for parents</li>
-            </ul>
-            <a class="btn btn-primary btn-full" href="#tutor">Coming soon</a>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ======= FAQ ======= -->
-    <section class="section section-alt" id="faq">
-      <div class="container faq-container">
-        <h2>Questions? Answers.</h2>
-        <details>
-          <summary>Will it just give me the answers?</summary>
-          <p>No — and that's the point. It gives hints and asks questions so you get there yourself. That's how it sticks for the test.</p>
-        </details>
-        <details>
-          <summary>Do I need to download anything?</summary>
-          <p>Nope. It works right here in your browser. Just allow the microphone when it asks.</p>
-        </details>
-        <details>
-          <summary>What ages is it for?</summary>
-          <p>Students 12–18. Tell the tutor your grade and it adjusts how it explains things.</p>
-        </details>
-        <details>
-          <summary>Is my voice recorded?</summary>
-          <p>Your conversation is processed by our voice AI partner (ElevenLabs) to make the tutor work. Don't share personal stuff like your full name, school, or address.</p>
-        </details>
-      </div>
-    </section>
   </main>
 
   <footer class="footer">
-    <div class="container footer-inner">
-      <span>⚒️ LogiCSmith — figure it out, out loud.</span>
-      <span class="footer-note">Powered by ElevenLabs voice AI.</span>
-    </div>
+    <span>⚒️ LogiCSmith — figure it out, out loud.</span>
   </footer>
 
-  <!-- Setup banner (shown only if the agent ID in config.js is missing) -->
-  <div id="setup-banner" hidden>
-    <strong>⚙️ Almost there!</strong> Add your ElevenLabs <code>agent-id</code> in
-    <code>config.js</code> to activate the voice tutor. See <code>README.md</code> for the 5-minute setup.
-  </div>
+  <div id="toast" hidden></div>
 
   <script src="config.js"></script>
   <script src="script.js"></script>
