@@ -161,7 +161,98 @@ textarea { resize: vertical; }
   margin-bottom: 20px;
 }
 
+/* ---- Mode tabs (chat / call) ---- */
+.mode-tabs {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+.mode-tab {
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  padding: 9px 20px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.mode-tab.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
 .tutor-panel { padding: 14px; }
+
+/* ---- Chat ---- */
+.chat-messages {
+  height: 420px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 6px;
+  background: var(--bg-alt);
+  border-radius: 12px;
+}
+.bubble {
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: 16px;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  word-wrap: break-word;
+}
+.bubble-user {
+  align-self: flex-end;
+  background: linear-gradient(135deg, var(--accent), #5a4bd1);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.bubble-tutor {
+  align-self: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-bottom-left-radius: 4px;
+}
+
+.composer {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  margin-top: 10px;
+}
+.composer textarea {
+  flex: 1;
+  min-height: 44px;
+  max-height: 140px;
+  border-radius: 14px;
+}
+.btn-send {
+  padding: 11px 18px;
+  font-size: 1.05rem;
+  line-height: 1.4;
+  box-shadow: 0 4px 14px rgba(108, 92, 231, 0.3);
+}
+.btn-send:disabled, .composer textarea:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.chat-note {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  text-align: center;
+  margin-top: 10px;
+}
+.chat-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
+}
 .tutor-panel-body {
   min-height: 380px;
   background: var(--bg-alt);
@@ -289,5 +380,7 @@ textarea { resize: vertical; }
 @media (max-width: 560px) {
   .profile-panel { padding: 24px 20px; }
   .tutor-panel-body, #tutor-widget-slot elevenlabs-convai { height: 340px; min-height: 340px; }
+  .chat-messages { height: 55vh; }
+  .bubble { max-width: 92%; }
   #toast { white-space: normal; width: calc(100% - 48px); text-align: center; border-radius: 14px; }
 }

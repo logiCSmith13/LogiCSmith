@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>LogiCSmith — Ask your tutor</title>
-  <meta name="description" content="Talk to LogiCSmith, your AI voice tutor. Set up your profile once and get help that fits your grade level and how you learn." />
+  <meta name="description" content="LogiCSmith is your personal Singapore MOE tutor. Chat with it like you would with your tutor — or call it. It teaches the way your tutor teaches." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -32,7 +32,7 @@
     <section id="profile-view" hidden>
       <div class="panel profile-panel">
         <h1 class="panel-title" id="profile-title">Hi! Let's set up your tutor. 👋</h1>
-        <p class="panel-sub">Answer a few quick questions so your tutor teaches at <em>your</em> level. You only do this once — you can change it later.</p>
+        <p class="panel-sub">A few quick questions so your tutor teaches at <em>your</em> level, the MOE way. You only do this once — you can change it later.</p>
 
         <form id="profile-form">
           <label class="field">
@@ -41,29 +41,17 @@
           </label>
 
           <label class="field">
-            <span class="field-label">What grade are you in?</span>
-            <select id="f-grade" required>
-              <option value="" disabled selected>Pick your grade</option>
-              <option>6th grade</option>
-              <option>7th grade</option>
-              <option>8th grade</option>
-              <option>9th grade</option>
-              <option>10th grade</option>
-              <option>11th grade</option>
-              <option>12th grade</option>
-              <option>College</option>
+            <span class="field-label">What level are you at?</span>
+            <select id="f-level" required>
+              <option value="" disabled selected>Pick your level</option>
+              <!-- filled by script.js: Primary 1–6, Secondary 1–5, JC 1–2 -->
             </select>
           </label>
 
           <fieldset class="field">
             <span class="field-label">Which subjects do you want help with?</span>
             <div class="check-chips" id="f-subjects">
-              <label><input type="checkbox" value="Math" /><span>➗ Math</span></label>
-              <label><input type="checkbox" value="Science" /><span>🧪 Science</span></label>
-              <label><input type="checkbox" value="Writing" /><span>✍️ Writing</span></label>
-              <label><input type="checkbox" value="Coding" /><span>💻 Coding</span></label>
-              <label><input type="checkbox" value="History" /><span>🌍 History</span></label>
-              <label><input type="checkbox" value="Languages" /><span>🗣️ Languages</span></label>
+              <p class="panel-sub small" id="subjects-hint">Pick your level first 👆</p>
             </div>
           </fieldset>
 
@@ -78,60 +66,66 @@
           </label>
 
           <label class="field">
-            <span class="field-label">How do you like to learn?</span>
+            <span class="field-label">How do you learn best?</span>
             <select id="f-style" required>
               <option value="" disabled selected>Pick what works for you</option>
-              <option>Show me an example first, then let me try</option>
-              <option>Walk me through it step by step</option>
-              <option>Quiz me and correct my mistakes</option>
-              <option>Give me the big picture first, then details</option>
+              <!-- filled by script.js from the 8 learning styles -->
             </select>
           </label>
 
           <label class="field">
             <span class="field-label">Anything else your tutor should know? <em>(optional)</em></span>
-            <textarea id="f-notes" rows="2" maxlength="200" placeholder="e.g. I have a big algebra test Friday, I mix up fractions…"></textarea>
+            <textarea id="f-notes" rows="2" maxlength="200" placeholder="e.g. Prelims in 3 weeks, I always mix up ratio and fractions…"></textarea>
           </label>
 
           <button type="submit" class="btn-primary btn-full">Start learning 🚀</button>
-          <p class="privacy-note">Your profile is saved only on this device — it never goes to a server.</p>
+          <p class="privacy-note">Your profile is saved only on this device.</p>
         </form>
       </div>
     </section>
 
-    <!-- ===== Chat / tutor view ===== -->
+    <!-- ===== Tutor view: chat (default) + voice call tab ===== -->
     <section id="chat-view" hidden>
       <h1 class="greeting" id="greeting">Hey! What are we working on?</h1>
 
-      <div class="panel tutor-panel">
-        <div class="tutor-panel-body" id="tutor-widget-slot"></div>
+      <div class="mode-tabs">
+        <button type="button" class="mode-tab active" id="tab-chat">💬 Chat</button>
+        <button type="button" class="mode-tab" id="tab-voice">📞 Call your tutor</button>
       </div>
 
-      <div class="usage-bar-wrap" id="usage-bar-wrap" hidden>
-        <div class="usage-bar"><div class="usage-bar-fill" id="usage-bar-fill"></div></div>
-        <span class="usage-bar-label" id="usage-bar-label"></span>
+      <!-- Chat panel -->
+      <div class="panel tutor-panel" id="chat-panel">
+        <div class="chat-messages" id="chat-messages"></div>
+        <form class="composer" id="composer">
+          <textarea id="chat-input" rows="1" placeholder="Type your question…" maxlength="2000"></textarea>
+          <button type="submit" class="btn-primary btn-send" id="send-btn" aria-label="Send">➤</button>
+        </form>
+        <p class="chat-note" id="chat-note" hidden></p>
+      </div>
+
+      <!-- Voice panel -->
+      <div class="panel tutor-panel" id="voice-panel" hidden>
+        <div class="tutor-panel-body" id="tutor-widget-slot"></div>
+        <div class="usage-bar-wrap" id="usage-bar-wrap" hidden>
+          <div class="usage-bar"><div class="usage-bar-fill" id="usage-bar-fill"></div></div>
+          <span class="usage-bar-label" id="usage-bar-label"></span>
+        </div>
+      </div>
+
+      <div class="chat-actions">
+        <button class="btn-ghost-small" id="new-chat-btn">🧹 New chat</button>
       </div>
 
       <div class="suggestions">
-        <p class="suggestions-label">Not sure how to start? Tap one to copy it, then say it:</p>
+        <p class="suggestions-label">Not sure how to start? Tap one:</p>
         <div class="chips" id="chips"></div>
       </div>
     </section>
 
-    <!-- ===== Daily limit reached ===== -->
-    <section id="limit-view" hidden>
-      <div class="panel limit-panel">
-        <span class="limit-emoji">🌙</span>
-        <h1 class="panel-title">That's your tutoring time for today!</h1>
-        <p class="panel-sub">Great work today. Your minutes reset at midnight — come back tomorrow and pick up where you left off.</p>
-        <p class="panel-sub small">Tip: review what you learned before bed. It helps it stick!</p>
-      </div>
-    </section>
-
-    <!-- ===== Setup banner (only if agent ID missing in config.js) ===== -->
+    <!-- ===== Setup banner (missing config) ===== -->
     <div id="setup-banner" hidden>
-      <strong>⚙️ Almost there!</strong> Add your ElevenLabs <code>agent-id</code> in
-      <code>config.js</code> to activate the voice tutor. See <code>README.md</code>.
+      <strong>⚙️ Almost there!</strong> <span id="setup-banner-text">Deploy <code>worker.js</code> and put its URL in
+      <code>config.js</code> → <code>tutorProxyUrl</code> to activate the Claude chat tutor. See <code>README.md</code>.</span>
     </div>
 
   </main>
@@ -143,6 +137,7 @@
   <div id="toast" hidden></div>
 
   <script src="config.js"></script>
+  <script src="prompt.js"></script>
   <script src="script.js"></script>
   <script src="https://unpkg.com/@elevenlabs/convai-widget-embed" async type="text/javascript"></script>
 </body>

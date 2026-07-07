@@ -1,174 +1,165 @@
 # ⚒️ LogiCSmith
 
-A chat-style AI voice tutor for students (12–18). Students set up a one-time
-profile (grade, subjects, confidence, learning style) and the tutor adapts to
-them from the first word. Powered by the
-[ElevenLabs Agents](https://elevenlabs.io/app/agents) voice widget — static
-site, no server needed.
+A personal AI tutor for Singapore MOE students (Primary 1–6, Secondary 1–5, JC 1–2),
+built to teach **the way you teach**: connect new concepts to old ones, narrow down
+before explaining, check confidence out of 10, no fluff.
+
+Students set up a one-time profile (name, level, MOE subjects, learning style based
+on the 8 multiple intelligences), then **chat with the tutor by text** (powered by
+**Claude**) or **call it by voice** (powered by **ElevenLabs**).
 
 Live site: `https://logicsmith13.github.io/LogiCSmith/`
 
+---
+
+## Which AI is which? (read this first)
+
+| Feature | AI brain | Billed from |
+| --- | --- | --- |
+| 💬 **Text chat** (main) | **Claude API** (Anthropic) | Your **Anthropic API** credits |
+| 📞 **Voice call** (optional tab) | **ElevenLabs Agents** (voice + its own LLM) | Your **ElevenLabs** credits |
+
+Two important billing facts:
+
+1. **The ElevenLabs widget never uses your Claude subscription.** Even if you pick
+   "Claude" as the LLM inside the ElevenLabs dashboard, ElevenLabs pays Anthropic and
+   re-bills you in ElevenLabs credits. If you have no ElevenLabs subscription, the
+   voice tab is the thing that will run out — the chat tab is unaffected.
+2. **A Claude.ai subscription (Pro/Max) is NOT the same as Claude API credits.**
+   The chat tutor calls the Claude **API**, which is billed separately, pay-as-you-go,
+   at [console.anthropic.com](https://console.anthropic.com). You need to create an
+   API key there and add a small amount of credit (US$5–10 goes a long way for text
+   tutoring). Set a monthly spend limit in the console so there are no surprises.
+
 ## Files
 
-| File         | Purpose                                                            |
-| ------------ | ------------------------------------------------------------------ |
-| `index.html` | The app: profile setup → tutor chat view → daily-limit view        |
-| `config.js`  | Agent ID, daily minutes cap, and the suggested starter questions   |
-| `script.js`  | Profile storage, widget mounting with dynamic variables, usage cap |
-| `styles.css` | All styling                                                        |
+| File | Purpose |
+| --- | --- |
+| `index.html` | The app: profile setup → chat tab (Claude) + call tab (ElevenLabs) |
+| `prompt.js` | **Your teaching style.** The system prompt, MOE levels/subjects, 8 learning styles |
+| `script.js` | Profile storage, chat streaming, history, daily limits, voice widget |
+| `worker.js` | Tiny Cloudflare Worker that keeps your Claude API key secret |
+| `config.js` | Proxy URL, ElevenLabs agent ID, daily caps, starter questions |
+| `styles.css` | All styling |
 
 ---
 
-## 1. Connect the student profile to your agent (do this once)
+## 1. Get a Claude API key
 
-The app collects a profile and passes it to your agent as **dynamic
-variables**. For the agent to actually use them, your agent's prompt must
-reference them with `{{double_braces}}`.
+1. Go to [console.anthropic.com](https://console.anthropic.com) (sign in with any account —
+   this is separate from claude.ai).
+2. Add billing / buy a small amount of credit, and set a **monthly spend limit**
+   under Settings → Limits.
+3. Create an API key (Settings → API keys). Copy it — you'll paste it into the
+   worker in the next step, **never** into the website code.
 
-In [your agent's](https://elevenlabs.io/app/agents) **Agent** tab:
+## 2. Deploy the proxy worker (once, ~5 minutes, free)
 
-**Replace the system prompt** with this (edit the persona freely, but keep the
-`{{variables}}`):
+GitHub Pages is a static host — any key placed in the site's code is public, and
+anyone could drain your credits. The fix is a tiny free proxy that holds the key:
 
-```
-You are LogiCSmith, a warm and encouraging voice tutor for students from
-middle school through college. You help with homework and questions in any
-subject using the Socratic method.
+1. Sign up at [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages**
+   → **Create Worker**. Name it e.g. `logicsmith-tutor`.
+2. Replace the default code with the contents of `worker.js` from this repo → **Deploy**.
+3. In the worker's **Settings → Variables and Secrets**, add:
+   - `ANTHROPIC_API_KEY` (type: **Secret**) — your key from step 1
+   - `ALLOWED_ORIGINS` (type: Text) — `https://logicsmith13.github.io,http://localhost:3000`
+   - `MODEL` (type: Text, optional) — defaults to `claude-opus-4-8` (smartest teaching).
+     To cut cost you can use `claude-sonnet-5` (~40% of the price, still excellent) or
+     `claude-haiku-4-5` (cheapest, noticeably simpler explanations).
+4. Copy the worker URL (`https://logicsmith-tutor.<your-account>.workers.dev`) into
+   `config.js` → `tutorProxyUrl`. Commit and push.
 
-About the student you are tutoring right now:
-- Name: {{student_name}}
-- Grade level: {{grade_level}}
-- Subjects they want help with: {{subjects}}
-- Their confidence level: {{confidence}}
-- How they like to learn: {{learning_style}}
-- Notes from the student: {{notes}}
+Only your website (and localhost) can call the worker, the model and token limits
+are enforced server-side, and the key never touches the browser.
 
-Adapt everything to this student: vocabulary, pacing, difficulty, and
-examples must match their grade level and confidence. Teach in the style
-they asked for ({{learning_style}}).
+## 3. Make it teach like YOU (`prompt.js`)
 
-Rules:
-- Never just give the final answer to a homework problem. Guide the student
-  there with hints, leading questions, and worked examples of SIMILAR problems.
-- Break problems into small steps. After each step, check understanding with
-  a quick question before moving on.
-- Celebrate progress genuinely but briefly. If the student is frustrated,
-  slow down and simplify.
-- Keep spoken responses short (2–4 sentences) — this is a voice conversation.
-- If asked to write an essay or do an assignment wholesale, decline kindly
-  and offer to brainstorm, outline, or review their draft instead.
-- Stay on educational topics. If the student needs help beyond tutoring,
-  gently suggest they talk to a trusted adult, teacher, or counselor.
-```
+There is **no "training" or fine-tuning involved** — the model isn't retrained on
+your files. Instead, its behavior is 100% controlled by the **system prompt** in
+`prompt.js`, which already encodes:
 
-**Set the first message** to something like:
+- **Connect-to-prior-knowledge analogies** (the 3D → 2D → 1D differentiation /
+  integration analogy is in there verbatim as the signature example)
+- **Narrow-down questioning** (the "which part of volume?" dialogue is in there
+  as the template)
+- **The confidence loop** — "out of 10, how confident are you now?" with your exact
+  branching: 1–6 re-teach differently, 7–9 ask what would make it a 10, 10 move on
+- **Name usage, no fluff, short messages, one idea at a time**
+- **Singapore MOE grounding** — PSLE / O-Level / A-Level context per level, bar
+  models before algebra for primary, etc.
+- **The 8 learning styles** (Linguistic, Logical-mathematical, Spatial,
+  Bodily-kinesthetic, Musical, Naturalist, Interpersonal, Intrapersonal) — each has
+  its own teaching instruction, chosen by the student in their profile
+- **Guide, don't give** — never hands over homework answers
 
-```
-Hey {{student_name}}! Ready to work on some {{subjects}}? What are we tackling today?
-```
+### What "files" should you prepare to improve it?
 
-**Set default values** for each dynamic variable (the dashboard prompts you
-for `dynamic_variable_placeholders`) — e.g. `there` for `student_name`,
-`not specified` for the rest. This keeps the dashboard "Test agent" button
-working when no profile is passed.
+Write these up (plain text / Markdown is ideal) and fold them into `prompt.js` —
+the model imitates concrete examples far better than abstract instructions:
 
-The profile is stored only in the student's browser (`localStorage`) — it
-never touches a server, and they can edit it anytime via **My profile**.
+1. **An analogy bank** — for each topic you teach, your go-to analogy, written the
+   way you'd say it. Add them under rule 1 in the prompt.
+2. **Example mini-dialogues** — 2–3 real exchanges per subject showing a student
+   question and *your* exact reply. Add them next to the "volume" example.
+3. **Common-mistakes lists** — the pitfalls you see every year, per topic, so the
+   tutor warns students about exactly those.
+4. **Your sectioning of each topic** — how YOU break "volume" or "differentiation"
+   into sub-parts. This makes the narrow-down questions match your teaching flow.
 
----
+Keep `prompt.js` focused (a few thousand words is fine). The improvement loop:
+students use it → you skim conversations with them / ask for feedback → you spot a
+reply that doesn't sound like you → you add a rule or example that fixes it. A few
+weekly rounds of this converge surprisingly fast.
 
-## 2. Teach the agent YOUR way (knowledge + style)
+(If the prompt grows very large later — e.g. full notes for every topic — the next
+step up is retrieval: the worker picks the relevant topic notes per question. Not
+needed to start.)
 
-Two mechanisms carry your personal teaching approach into the agent:
+## 4. Keep the voice tutor consistent (ElevenLabs)
 
-### A. Your style → the system prompt
+The call tab still uses your ElevenLabs agent. To make it teach the same way:
 
-The system prompt is where your mentoring personality lives. Make it concrete:
+1. In [your agent](https://elevenlabs.io/app/agents) → **Agent** tab, paste the same
+   teaching rules from `prompt.js` (`buildSystemPrompt`) as the system prompt, keeping
+   `{{student_name}}`, `{{grade_level}}`, `{{subjects}}`, `{{confidence}}`,
+   `{{learning_style}}`, `{{notes}}` as dynamic variables (the app passes them in).
+   Add: "Keep spoken responses to 2–4 sentences — this is a voice conversation."
+2. In the agent's LLM setting you can pick a Claude model — it improves quality but
+   is still billed in ElevenLabs credits.
+3. **Knowledge Base** tab: upload lesson notes, worked examples, and common-mistakes
+   lists (PDF/docx/txt) and enable RAG — the voice agent retrieves them mid-call.
 
-1. **Write down how you actually teach.** Not "be encouraging" but the real
-   moves: *"When a student is stuck, I first ask them to re-read the problem
-   out loud and tell me what it's asking. I never introduce a formula before
-   showing a real-life situation that needs it."*
-2. **Add your signature phrases and analogies.** If you always explain
-   fractions with pizza or variables as "mystery boxes," write those into the
-   prompt: *"Explain variables as 'mystery boxes' the first time they come up."*
-3. **Add 2–3 example mini-dialogues** at the bottom of the prompt showing a
-   student question and how YOU would respond. The model imitates examples
-   far better than it follows abstract instructions.
-4. **Iterate from real transcripts.** The ElevenLabs dashboard keeps every
-   conversation (Agents → your agent → Conversations / Call history). Read a
-   few sessions weekly, spot where the tutor didn't sound like you, and add a
-   rule or example that corrects it. This loop is how the agent converges on
-   your voice.
+### Protecting your ElevenLabs credits
 
-### B. Your knowledge → the Knowledge Base (RAG)
+In the dashboard: **Security tab** → allowlist `logicsmith13.github.io` (+ `localhost`),
+keep overrides OFF. **Advanced tab** → max call duration ~10–15 min, daily call limit
+sized to your usage, burst pricing OFF. Set a workspace usage alert. In this app,
+`dailyLimitMinutes` in `config.js` adds a per-device soft cap.
 
-In your agent's **Knowledge Base** tab you can upload files, URLs, or text.
-The agent retrieves relevant passages during conversation (enable **RAG** in
-the Knowledge Base settings when prompted):
+## 5. Daily limits in the app
 
-- Upload your **lesson notes, worked examples, cheat sheets, and study
-  guides** (PDF, docx, txt, html all work).
-- Structure documents around *how you explain things*, not just facts —
-  e.g. "My 3-step method for word problems," with a worked example of each
-  step, teaches the agent your method.
-- Add your **grading rubrics or common-mistakes lists** so the tutor warns
-  students about the exact pitfalls you see every year.
-- Keep documents focused (one topic per file); retrieval works better than
-  with one giant file.
+- `dailyChatMessages` (default 60) — chat questions per device per day
+- `dailyLimitMinutes` (default 20) — voice-call minutes per device per day
 
-Prompt + knowledge base together = the agent explains things using your
-materials, in your style. Test it by asking a question you have a strong
-opinion about how to teach, and refine until the answer sounds like you.
+These are soft, per-device limits (a tech-savvy student can clear localStorage).
+The real protection is the worker origin allowlist + your Anthropic console spend
+limit + the ElevenLabs dashboard limits.
 
----
+## Scaling beyond Singapore later
 
-## 3. Protecting your credits (do ALL of these)
-
-The widget requires a public agent, so the protection is layered limits, not
-secrecy. In the [dashboard](https://elevenlabs.io/app/agents), open your agent:
-
-**Security tab**
-1. **Allowlist** — add `logicsmith13.github.io` (and `localhost` while
-   developing). Only these hosts can start conversations with your agent.
-   This is the single most important setting.
-2. **Overrides — keep OFF.** If overrides are on, anyone embedding your
-   agent could replace your system prompt and use your credits as a general
-   chatbot.
-
-**Advanced tab → Call Limits**
-3. **Max conversation duration** — set ~10–15 minutes. Hard stop per call,
-   even if a student leaves a tab open.
-4. **Daily call limit** — cap how many conversations the agent accepts per
-   day, sized to your expected usage (e.g. 20–50 while testing).
-5. **Burst pricing — keep OFF** so traffic spikes can't bill at double rate.
-
-**Workspace level**
-6. Set a **usage budget / alerts** in your ElevenLabs account settings so
-   you get an email before credits run dry.
-
-**In this app (client-side)**
-7. `dailyLimitMinutes` in `config.js` (default 20) caps tutoring minutes per
-   day per device; the app tracks call time and swaps in a "come back
-   tomorrow" screen at the limit. It's a soft limit (a tech-savvy student
-   can clear localStorage), so treat the dashboard limits above as the real
-   enforcement — this one just keeps honest kids honest.
-
-**If you ever need bulletproof enforcement** (per-student accounts, server-
-side quotas): switch the agent to private and mint conversation tokens from a
-tiny serverless function (Cloudflare Workers / Vercel functions have free
-tiers). That requires real hosting rather than GitHub Pages — worth it only
-if the layered limits above prove insufficient.
-
----
+The MOE grounding lives in exactly two places: the level/subject lists at the top of
+`prompt.js`, and the `CURRICULUM` block inside `buildSystemPrompt`. To add another
+country, add its levels/subjects and a matching curriculum paragraph, plus a
+"curriculum" question on the profile form — nothing else changes.
 
 ## Local development
 
-Serve the folder (mic access needs `localhost` or `https`):
+```
+npx serve .        # any static server; mic access needs localhost or https
+```
 
-```
-npx serve .        # or any static server
-```
+Add `http://localhost:3000` (or whatever port) to the worker's `ALLOWED_ORIGINS`.
 
 ## Deploying changes
 
