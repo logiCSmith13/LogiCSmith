@@ -181,6 +181,40 @@ SCIENCE MISCONCEPTIONS to catch:
 - End-state answers where the process is wanted ("will be at" vs "will decrease to").
 - Reading only the first row of a data table instead of the pattern.`;
 
+  // ---- PSLE Science answer frames ----
+  // The Singapore primary-science mark scheme rewards a fixed answer
+  // STRUCTURE and exact comparison/process words. These are standard
+  // PSLE answering conventions (not any one centre's property),
+  // synthesised in CS's own teaching voice. Primary profiles only.
+  const PSLE_SCIENCE_FRAMES = `
+PSLE SCIENCE ANSWER FRAMES — for "explain / why / give a reason" questions, coach the student to build the answer in this exact shape and never skip the middle:
+
+THE UNIVERSAL STRUCTURE — Observation → Science concept → Link (O-S-L):
+1) OBSERVE: describe/compare what the setup or results show, using comparison words (-er / -est): "Beaker X has the HIGHEST temperature..."
+2) SCIENCE CONCEPT: state the rule that explains it: "...showing material X is the BEST conductor of heat."
+3) LINK: connect back to what the question asked (only when needed): "Hence X heats the food fastest."
+The marks live in the comparison words and the middle concept — an answer that skips the concept scores nothing.
+
+EXPERIMENT-SKILL FRAMES (coach the exact wording):
+- Changed variable (CV) = the one thing varied. Measured variable (MV) = what's recorded. Constants = everything else kept the same.
+- Fair test: "There must be only ONE changed variable (the CV). All other variables must be kept the same so that only the CV, and not (other factor), affects the MV."
+- Control set-up: "Remove the CV and keep all other variables the same, to show the MV is affected only by the CV and not other factors."
+- Reliability: "Repeat the experiment at least three times and take the average of the results."
+- Aim: "if/whether" the CV affects the MV (presence/absence) · "HOW" the CV affects the MV (different amounts) · "WHICH object is the most/least (property)" (comparing objects).
+- Relationship: "As the (CV) increases, the (MV) increases / decreases / stays the same." (Split into ranges if the graph changes direction.)
+
+TOPIC FRAMES (heat, states, energy, forces — the PSLE staples):
+- Heat transfer: "Since the (hotter object) is hotter than the (colder object), the (hotter object) loses heat to the (colder object) and its temperature decreases." (Reverse for temperature increase.)
+- Expansion/contraction: "(object) gains heat, expands and increases in volume/length." (Reverse: loses heat, contracts, decreases.)
+- No temperature change during melting/boiling: "All the heat gained is used to change state from (solid/liquid) to (liquid/gas), instead of raising its temperature."
+- Evaporation (3 keyword sets): "Water GAINS HEAT from the warmer surroundings and EVAPORATES into WATER VAPOUR."
+- Condensation (5 keyword sets): "Warmer WATER VAPOUR meets the COOLER surface, LOSES HEAT and CONDENSES into WATER DROPLETS."
+- Cooling by evaporation: "Water on X gains heat from X and evaporates; hence X loses heat and its temperature decreases."
+- Energy conversion: use arrows — "Potential energy → Kinetic energy → Heat + Sound energy." Slows down = SOME KE converted to heat/sound by friction; stops = ALL KE converted.
+- Friction: "(surface) is rougher/smoother, hence there is greater/less friction..."
+
+Always make the student underline the command word (state / explain / predict) and the comparison words in the question first, then build O-S-L.`;
+
   // ---- English guidance ----
   // CS doesn't personally teach English, so this block adapts his
   // METHOD (diagnose -> narrow down -> guide, never give) to English,
@@ -252,6 +286,7 @@ If your explanations aren't landing after two attempts, ask a short follow-up ab
 ${CS_MATH_DNA}
 ${stageOf(profile.level) === "Primary" ? CS_PRIMARY_MATH : ""}
 ${CS_SCIENCE_DNA}
+${stageOf(profile.level) === "Primary" ? PSLE_SCIENCE_FRAMES : ""}
 ${ENGLISH_GUIDE}`;
   }
 
