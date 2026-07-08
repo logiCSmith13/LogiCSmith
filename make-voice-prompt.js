@@ -24,10 +24,14 @@ let p = P.buildSystemPrompt({
   name: "{{student_name}}",
   level: "{{grade_level}}",
   subjects: "{{subjects}}",
-  confidence: "{{confidence}}",
   style: "{{learning_style}}",
   notes: "{{notes}}",
 });
+
+// buildSystemPrompt includes the primary maths block only for Primary
+// profiles; a template variable can't branch, so append it here with a
+// scoping line the voice agent applies itself.
+p += "\n\nIF {{grade_level}} IS A PRIMARY LEVEL, also follow this:\n" + P.CS_PRIMARY_MATH;
 
 // buildSystemPrompt can't branch on a template variable, so it emits
 // the Secondary exam context and the fallback learning style. Replace

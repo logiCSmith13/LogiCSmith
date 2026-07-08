@@ -22,12 +22,12 @@ const LOGICSMITH_CONFIG = {
   dailyLimitMinutes: 20,
 
   suggestions: [
-    "I don't understand volume at all",
-    "Explain differentiation simply",
+    "I don't understand decimals at all",
     "Help me with this algebra question",
+    "How do I answer 'explain' questions in Science?",
+    "Quiz me on heat energy",
+    "How do I write a better compo introduction?",
     "Why do I keep losing marks in Paper 2?",
-    "Quiz me on photosynthesis",
-    "How do I convert L to mL again?",
   ],
 
   // Voice widget labels + brand colors
