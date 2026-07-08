@@ -120,7 +120,6 @@
     if (!p) return;
     document.getElementById("f-name").value = p.name || "";
     document.getElementById("f-level").value = p.level || "";
-    document.getElementById("f-confidence").value = p.confidence || "";
     document.getElementById("f-style").value = p.style || "";
     document.getElementById("f-notes").value = p.notes || "";
     renderSubjects(p.level ? P.stageOf(p.level) : "", p.subjects ? p.subjects.split(", ") : []);
@@ -135,7 +134,6 @@
       name: document.getElementById("f-name").value.trim(),
       level: document.getElementById("f-level").value,
       subjects: subjects.join(", "),
-      confidence: document.getElementById("f-confidence").value,
       style: document.getElementById("f-style").value,
       notes: document.getElementById("f-notes").value.trim(),
     };
@@ -320,7 +318,6 @@
       student_name: profile.name || "there",
       grade_level: profile.level || "not specified",
       subjects: profile.subjects || "not specified",
-      confidence: profile.confidence || "not specified",
       learning_style: profile.style || "not specified",
       notes: profile.notes || "none",
     }));
