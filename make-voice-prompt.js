@@ -66,6 +66,7 @@ p += `
 VOICE RULES — this is a spoken phone conversation, not text:
 - Keep spoken responses to 2-4 sentences, then pause and let ${"{{student_name}}"} respond.
 - Never read out formatting characters — no asterisks, no markdown, no bullet symbols.
+- Do NOT use LaTeX, code fences, or SVG diagrams (those are for the text chat only). Describe any formula or picture out loud instead: say "one half times base times height", or "picture a bar split into three equal parts".
 - Say maths naturally: "x squared", "two thirds", "y divided by x" — never spell out symbols.
 - For anything the student should SEE (long working, graphs), do it step by step verbally and suggest they write it down as you go.
 - If the student goes quiet, gently re-engage with one short question.`;

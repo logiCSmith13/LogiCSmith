@@ -384,3 +384,18 @@ textarea { resize: vertical; }
   .bubble { max-width: 92%; }
   #toast { white-space: normal; width: calc(100% - 48px); text-align: center; border-radius: 14px; }
 }
+
+/* Tutor diagrams (SVG the tutor draws) + rendered formulas (KaTeX) */
+.diagram {
+  margin: 10px 0;
+  text-align: center;
+}
+.diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+.bubble .katex-display {
+  margin: 8px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}

@@ -20,6 +20,8 @@
 //   !error   → streams a Claude-style error event (tests the ⚠️ path)
 //   !fail    → returns HTTP 500 (tests the "Tutor unavailable" path)
 //   !long    → streams a long reply (tests scrolling + formatting)
+//   !draw    → streams a reply with a bar-model SVG + a LaTeX formula
+//              (tests diagram + formula rendering)
 // ============================================================
 
 const http = require("http");
@@ -49,6 +51,24 @@ const REPLIES = [
     "If the base area is 20 cm^2 and the volume is 100 cm^3, what's the height?\n" +
     "(Hint: volume ÷ base area)",
 ];
+
+// Demonstrates formula (LaTeX) + diagram (SVG) rendering in the chat.
+const DRAW_REPLY =
+  "Okay, let's picture that mango problem with a **bar model**:\n" +
+  "```svg\n" +
+  '<svg viewBox="0 0 340 90" xmlns="http://www.w3.org/2000/svg">' +
+  '<rect x="10" y="30" width="55" height="34" fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>' +
+  '<rect x="65" y="30" width="55" height="34" fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>' +
+  '<rect x="120" y="30" width="55" height="34" fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>' +
+  '<rect x="175" y="30" width="150" height="34" fill="#fff3e0" stroke="#e65100" stroke-width="2"/>' +
+  '<text x="92" y="22" text-anchor="middle" font-size="12" font-family="sans-serif">3 mangoes</text>' +
+  '<text x="250" y="22" text-anchor="middle" font-size="12" font-family="sans-serif">apples + pears = $6.40</text>' +
+  '<text x="167" y="82" text-anchor="middle" font-size="12" font-family="sans-serif">whole = $10</text>' +
+  "</svg>\n" +
+  "```\n" +
+  "So 3 mangoes = $10 − $6.40 = $3.60. Then one mango:\n" +
+  "\\[ \\frac{\\$3.60}{3} = \\$1.20 \\]\n" +
+  "What is the question actually asking for — 3 mangoes or 1?";
 
 const LONG_REPLY =
   "Here's a longer reply to test scrolling and streaming.\n" +
@@ -127,7 +147,9 @@ http
       }
 
       let reply;
-      if (trigger === "!long") {
+      if (trigger === "!draw") {
+        reply = DRAW_REPLY;
+      } else if (trigger === "!long") {
         reply = LONG_REPLY;
       } else {
         reply =

@@ -140,6 +140,7 @@
   }
 
   // ---------- chat rendering ----------
+  // renderMessageText: fast, safe partial render used WHILE a reply streams.
   function renderMessageText(el, text) {
     // minimal safe formatting: escape HTML, then **bold** and line breaks
     let html = text
@@ -149,11 +150,112 @@
     el.innerHTML = html;
   }
 
+  // ---- SVG diagram sanitizer (no dependency; uses the browser's DOMParser) ----
+  // The tutor may draw bar models / geometry / graphs as SVG. Model output is
+  // trusted less than our own code, so we allow ONLY a whitelist of geometric
+  // and text elements + safe attributes, and drop everything else (scripts,
+  // event handlers, external/js links, foreignObject, style, etc.).
+  const SVG_TAGS = {
+    svg: 1, g: 1, path: 1, line: 1, polyline: 1, polygon: 1, rect: 1,
+    circle: 1, ellipse: 1, text: 1, tspan: 1, defs: 1, marker: 1, title: 1, desc: 1,
+  };
+  const SVG_ATTRS = {
+    viewbox: 1, width: 1, height: 1, xmlns: 1, x: 1, y: 1, x1: 1, y1: 1, x2: 1, y2: 1,
+    cx: 1, cy: 1, r: 1, rx: 1, ry: 1, d: 1, points: 1, fill: 1, stroke: 1,
+    "stroke-width": 1, "stroke-linecap": 1, "stroke-linejoin": 1, "stroke-dasharray": 1,
+    "fill-opacity": 1, "stroke-opacity": 1, opacity: 1, transform: 1, "text-anchor": 1,
+    "dominant-baseline": 1, "font-size": 1, "font-family": 1, "font-weight": 1,
+    "marker-end": 1, "marker-start": 1, id: 1, refx: 1, refy: 1,
+    markerwidth: 1, markerheight: 1, orient: 1, dx: 1, dy: 1,
+  };
+  const UNSAFE_ATTR_VALUE = /javascript:|url\(\s*['"]?\s*[^#]/i; // block js: and non-fragment url(...)
+
+  function scrubSVGNode(node) {
+    const kids = Array.prototype.slice.call(node.childNodes);
+    for (const c of kids) {
+      if (c.nodeType === 1) {
+        if (!SVG_TAGS[c.nodeName.toLowerCase()]) { node.removeChild(c); continue; }
+        Array.prototype.slice.call(c.attributes).forEach(function (a) {
+          const name = a.name.toLowerCase();
+          if (!SVG_ATTRS[name] || UNSAFE_ATTR_VALUE.test(a.value)) c.removeAttribute(a.name);
+        });
+        scrubSVGNode(c);
+      } else if (c.nodeType === 8) {
+        node.removeChild(c); // strip comments
+      }
+    }
+  }
+
+  function sanitizeSVG(svgString) {
+    if (/<!doctype|<!entity|<\?/i.test(svgString)) return ""; // no DTD/entities/PIs
+    try {
+      const doc = new DOMParser().parseFromString(svgString, "image/svg+xml");
+      if (doc.getElementsByTagName("parsererror").length) return "";
+      const root = doc.documentElement;
+      if (!root || root.nodeName.toLowerCase() !== "svg") return "";
+      scrubSVGNode(root);
+      return new XMLSerializer().serializeToString(root);
+    } catch (e) {
+      return "";
+    }
+  }
+
+  // Very small LaTeX->text cleanup, used ONLY if KaTeX failed to load, so the
+  // fallback reads "1/2 × b × h" instead of raw "\frac{1}{2}\times b".
+  function latexToPlain(s) {
+    return s
+      .replace(/\\frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, "($1)/($2)")
+      .replace(/\\times/g, "×").replace(/\\cdot/g, "·").replace(/\\div/g, "÷")
+      .replace(/\\pi/g, "π").replace(/\\sqrt/g, "√")
+      .replace(/\\text\s*\{([^{}]*)\}/g, "$1")
+      .replace(/\\left|\\right/g, "").replace(/\\[,;! ]/g, " ")
+      .replace(/\\\$/g, "$") // \$ -> $  (literal dollar in LaTeX)
+      .replace(/[{}]/g, "").replace(/\\[a-zA-Z]+/g, "");
+  }
+
+  // finalizeMessage: full render for a COMPLETED assistant message —
+  // diagrams + formulas. Used after streaming ends and when replaying history.
+  function finalizeMessage(el, text) {
+    const svgs = [];
+    let work = text.replace(/```svg\s*([\s\S]*?)```/gi, function (_, code) {
+      const clean = sanitizeSVG(code.trim());
+      if (!clean) return ""; // drop anything unsafe or unparseable
+      svgs.push(clean);
+      return "SVG" + (svgs.length - 1) + "";
+    });
+    let html = work
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/\n/g, "<br>");
+    html = html.replace(/SVG(\d+)/g, function (_, i) {
+      return '<div class="diagram">' + svgs[+i] + "</div>";
+    });
+    el.innerHTML = html;
+
+    if (window.renderMathInElement) {
+      try {
+        window.renderMathInElement(el, {
+          delimiters: [
+            { left: "\\[", right: "\\]", display: true },
+            { left: "\\(", right: "\\)", display: false },
+          ],
+          throwOnError: false,
+        });
+      } catch (e) { /* leave as-is */ }
+    } else {
+      // KaTeX didn't load — degrade math to readable plain text
+      el.innerHTML = el.innerHTML.replace(/\\\[([\s\S]*?)\\\]|\\\(([\s\S]*?)\\\)/g,
+        function (_, a, b) { return latexToPlain(a != null ? a : b); });
+    }
+  }
+
   function addBubble(role, text) {
     const list = document.getElementById("chat-messages");
     const div = document.createElement("div");
     div.className = "bubble " + (role === "user" ? "bubble-user" : "bubble-tutor");
-    renderMessageText(div, text);
+    // Assistant messages get the full diagram+formula render; user text stays plain.
+    if (role === "user") renderMessageText(div, text);
+    else finalizeMessage(div, text);
     list.appendChild(div);
     list.scrollTop = list.scrollHeight;
     return div;
@@ -277,6 +379,7 @@
           list.scrollTop = list.scrollHeight;
         }
       );
+      finalizeMessage(bubble, reply); // render diagrams + formulas once complete
       msgs.push({ role: "assistant", content: reply });
       saveChat(msgs);
     } catch (err) {
