@@ -39,6 +39,7 @@ Two important billing facts:
 | `prompt.js` | **Your teaching style.** The system prompt, MOE levels/subjects, 8 learning styles |
 | `script.js` | Profile storage, chat streaming, history, daily limits, voice widget |
 | `worker.js` | Tiny Cloudflare Worker that keeps your Claude API key secret |
+| `mock-proxy.js` | Local fake tutor brain — test the app with no API key (see Local development) |
 | `config.js` | Proxy URL, ElevenLabs agent ID, daily caps, starter questions |
 | `styles.css` | All styling |
 
@@ -160,6 +161,26 @@ npx serve .        # any static server; mic access needs localhost or https
 ```
 
 Add `http://localhost:3000` (or whatever port) to the worker's `ALLOWED_ORIGINS`.
+
+### Test the chat with NO API key (mock proxy)
+
+`mock-proxy.js` is a fake tutor brain that runs on your machine and streams
+canned replies in the exact format the real Claude API uses. It lets you test
+the whole app — profile, chat streaming, history, daily limits, error states —
+with zero API spend and no Cloudflare/Anthropic account:
+
+```
+node mock-proxy.js               # starts http://localhost:8788
+```
+
+Then temporarily set `tutorProxyUrl: "http://localhost:8788"` in `config.js`
+and open the locally served site. Type `!error`, `!fail` or `!long` as chat
+messages to test the error and long-reply paths. **Revert `tutorProxyUrl`
+before pushing** — the live site should point at the real worker (or stay `""`).
+
+Note: the mock tests the app's plumbing, not the tutor's intelligence. To
+preview the actual teaching behavior for free, paste the system prompt from
+`prompt.js` into a conversation at claude.ai.
 
 ## Deploying changes
 
