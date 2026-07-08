@@ -14,7 +14,7 @@
 // ============================================================
 
 const LOGICSMITH_CONFIG = {
-  tutorProxyUrl: "",
+  tutorProxyUrl: "https://logicsmith-tutor.cs1415319.workers.dev",
 
   agentId: "agent_4501kwxfp7emfxtb957xknpf6xqt",
 
