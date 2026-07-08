@@ -186,6 +186,7 @@ ${CS_MATH_DNA}`;
     LEVELS: LEVELS,
     SUBJECTS: SUBJECTS,
     LEARNING_STYLES: LEARNING_STYLES,
+    STYLE_INSTRUCTIONS: STYLE_INSTRUCTIONS,
     stageOf: stageOf,
     buildSystemPrompt: buildSystemPrompt,
   };

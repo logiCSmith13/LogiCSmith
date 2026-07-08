@@ -121,11 +121,16 @@ needed to start.)
 
 The call tab still uses your ElevenLabs agent. To make it teach the same way:
 
-1. In [your agent](https://elevenlabs.io/app/agents) → **Agent** tab, paste the same
-   teaching rules from `prompt.js` (`buildSystemPrompt`) as the system prompt, keeping
-   `{{student_name}}`, `{{grade_level}}`, `{{subjects}}`, `{{confidence}}`,
-   `{{learning_style}}`, `{{notes}}` as dynamic variables (the app passes them in).
-   Add: "Keep spoken responses to 2–4 sentences — this is a voice conversation."
+1. Generate the voice version of the prompt (it converts `prompt.js` into the
+   ElevenLabs format automatically, with `{{student_name}}` etc. as dynamic
+   variables and spoken-conversation rules appended):
+
+   ```
+   node make-voice-prompt.js > voice-prompt.txt
+   ```
+
+   Paste the output into [your agent](https://elevenlabs.io/app/agents) →
+   **Agent** tab → system prompt. Re-run and re-paste whenever `prompt.js` changes.
 2. In the agent's LLM setting you can pick a Claude model — it improves quality but
    is still billed in ElevenLabs credits.
 3. **Knowledge Base** tab: upload lesson notes, worked examples, and common-mistakes
