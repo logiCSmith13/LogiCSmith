@@ -362,11 +362,18 @@
     const msgs = loadChat();
     msgs.push({ role: "user", content: text.trim() });
     saveChat(msgs);
-    addBubble("user", text.trim());
+    const userBubble = addBubble("user", text.trim());
     addChatUsage();
     renderUsagePill();
 
     const bubble = addBubble("assistant", "…");
+    // Anchor the student's question near the top of the chat window, so the
+    // reply "types out" downward from there and they read it top-to-bottom
+    // (instead of the view jumping to the bottom of a long reply). After this
+    // we DON'T force-scroll while streaming — the student scrolls down to read.
+    const list = document.getElementById("chat-messages");
+    list.scrollTop = Math.max(0, userBubble.offsetTop - 10);
+
     let reply = "";
     try {
       await streamReply(
@@ -375,11 +382,13 @@
         function (delta) {
           reply += delta;
           renderMessageText(bubble, reply);
-          const list = document.getElementById("chat-messages");
-          list.scrollTop = list.scrollHeight;
         }
       );
       finalizeMessage(bubble, reply); // render diagrams + formulas once complete
+      // Re-anchor now that the full reply exists below the question: pins the
+      // question at the top so the student reads the reply top-to-bottom.
+      // (Short replies that already fit stay put — scrollTop clamps to 0.)
+      list.scrollTop = Math.max(0, userBubble.offsetTop - 10);
       msgs.push({ role: "assistant", content: reply });
       saveChat(msgs);
     } catch (err) {
