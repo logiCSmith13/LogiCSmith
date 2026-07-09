@@ -30,7 +30,7 @@ const LOGICSMITH_CONFIG = {
 
   dailyTokenBudget: 60000,
   maxImagesPerMessage: 4,
-  dailyLimitMinutes: 5,
+  dailyLimitMinutes: 1,
 
   suggestions: [
     "I don't understand decimals at all",
