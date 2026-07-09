@@ -145,12 +145,27 @@ sized to your usage, burst pricing OFF. Set a workspace usage alert. In this app
 
 ## 5. Daily limits in the app
 
-- `dailyChatMessages` (default 60) — chat questions per device per day
+- `dailyTokenBudget` (default 60000) — Claude usage per device per day, metered
+  in **tokens** (input + output). Because a photo costs far more tokens than a
+  typed line, this reflects real cost better than a flat question count.
+  ~60000 ≈ 40 typed questions or ~15 with photos. Shown to students as a
+  friendly "🔋 % left today" battery.
+- `maxImagesPerMessage` (default 4) — photos a student can attach to one question.
 - `dailyLimitMinutes` (default 20) — voice-call minutes per device per day
 
 These are soft, per-device limits (a tech-savvy student can clear localStorage).
 The real protection is the worker origin allowlist + your Anthropic console spend
 limit + the ElevenLabs dashboard limits.
+
+### Photo upload
+
+Students can attach photos of a question (📎 button, paste, or drag-and-drop) —
+handy for worksheets and handwritten working. Photos are downscaled in the
+browser before sending (to control cost and storage), sent to Claude with the
+question, and shown in the chat. A photo is attached to that one message only;
+older photos aren't re-sent, so the tutor is prompted to restate the key part of
+a photo in text as you work through it. Only images (jpg/png/webp) are supported
+for now.
 
 ## Scaling beyond Singapore later
 

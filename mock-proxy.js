@@ -91,6 +91,29 @@ function sseDelta(text) {
   );
 }
 
+function sseUsageStart(inputTokens) {
+  return (
+    "data: " +
+    JSON.stringify({
+      type: "message_start",
+      message: { usage: { input_tokens: inputTokens, output_tokens: 0 } },
+    }) +
+    "\n\n"
+  );
+}
+
+function sseUsageDelta(outputTokens) {
+  return (
+    "data: " +
+    JSON.stringify({
+      type: "message_delta",
+      delta: { stop_reason: "end_turn" },
+      usage: { output_tokens: outputTokens },
+    }) +
+    "\n\n"
+  );
+}
+
 function sseError(message) {
   return (
     "data: " +
@@ -128,8 +151,21 @@ http
       try { body = JSON.parse(raw); } catch (e) { /* keep {} */ }
 
       const messages = Array.isArray(body.messages) ? body.messages : [];
-      const last = messages.length ? String(messages[messages.length - 1].content || "") : "";
-      const trigger = last.trim().toLowerCase();
+      const lastMsg = messages.length ? messages[messages.length - 1] : null;
+      // content can be a plain string or an array of blocks (text + images)
+      let lastText = "";
+      let hasImage = false;
+      if (lastMsg) {
+        if (typeof lastMsg.content === "string") {
+          lastText = lastMsg.content;
+        } else if (Array.isArray(lastMsg.content)) {
+          lastMsg.content.forEach(function (b) {
+            if (b.type === "text") lastText += b.text || "";
+            if (b.type === "image") hasImage = true;
+          });
+        }
+      }
+      const trigger = lastText.trim().toLowerCase();
 
       if (trigger === "!fail") {
         res.writeHead(500, cors);
@@ -151,6 +187,9 @@ http
         reply = DRAW_REPLY;
       } else if (trigger === "!long") {
         reply = LONG_REPLY;
+      } else if (hasImage) {
+        reply = "📷 Got your photo! (mock) I can see there's a question here. " +
+          "In the real app I'd read it and restate the key part. What's the first thing you notice?";
       } else {
         reply =
           "🧪 (mock, " + messages.length + " msgs of history received)\n" +
@@ -158,16 +197,24 @@ http
         replyIndex += 1;
       }
 
+      // Simulate token usage like the real API: a photo costs many more input
+      // tokens than a typed line, so the client's token meter draws down more.
+      const inputTokens = hasImage ? 1600 : 400;
+      res.write(sseUsageStart(inputTokens));
+
       // Stream a few words at a time, like the real API does.
       const words = reply.split(" ");
       let i = 0;
+      let outTokens = 0;
       const timer = setInterval(function () {
         if (i >= words.length) {
           clearInterval(timer);
+          res.write(sseUsageDelta(outTokens || words.length)); // final output-token count
           return res.end();
         }
         const chunk = words.slice(i, i + 3).join(" ") + (i + 3 < words.length ? " " : "");
         res.write(sseDelta(chunk));
+        outTokens += 3;
         i += 3;
       }, 40);
 

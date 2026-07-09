@@ -92,7 +92,10 @@
       <div class="panel tutor-panel" id="chat-panel">
         <div class="chat-messages" id="chat-messages"></div>
         <form class="composer" id="composer">
-          <textarea id="chat-input" rows="1" placeholder="Type your question…" maxlength="2000"></textarea>
+          <div class="attach-previews" id="attach-previews" hidden></div>
+          <button type="button" class="btn-attach" id="attach-btn" title="Attach a photo" aria-label="Attach a photo">📎</button>
+          <input type="file" id="attach-input" accept="image/png,image/jpeg,image/webp" multiple hidden />
+          <textarea id="chat-input" rows="1" placeholder="Type your question — or attach a photo 📎" maxlength="2000"></textarea>
           <button type="submit" class="btn-primary btn-send" id="send-btn" aria-label="Send">➤</button>
         </form>
         <p class="chat-note" id="chat-note" hidden></p>

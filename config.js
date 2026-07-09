@@ -7,7 +7,13 @@
 //   the chat until you've deployed it.
 // agentId: ElevenLabs agent for the optional voice call tab,
 //   from https://elevenlabs.io/app/agents
-// dailyChatMessages: soft cap on chat questions per device/day.
+// dailyTokenBudget: soft per-device daily cap on Claude usage, in tokens
+//   (input + output). Photos cost far more tokens than a typed line, so this
+//   reflects real cost better than a flat question count. ~60000 ≈ 40 typed
+//   questions or ~15 with photos. SOFT cap only — a student can reset it by
+//   clearing browser data. Your HARD ceiling is the monthly spend limit in the
+//   Anthropic console. Change this number freely.
+// maxImagesPerMessage: how many photos a student can attach to one question.
 // dailyLimitMinutes: soft cap on voice-call minutes per device/day.
 //   Also set hard limits in the ElevenLabs dashboard (README).
 // suggestions: the "tap to ask" starter questions shown in the app.
@@ -18,7 +24,8 @@ const LOGICSMITH_CONFIG = {
 
   agentId: "agent_4501kwxfp7emfxtb957xknpf6xqt",
 
-  dailyChatMessages: 60,
+  dailyTokenBudget: 60000,
+  maxImagesPerMessage: 4,
   dailyLimitMinutes: 20,
 
   suggestions: [

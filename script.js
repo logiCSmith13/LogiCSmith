@@ -7,12 +7,14 @@
   const voiceConfigured = cfg && cfg.agentId && cfg.agentId !== "YOUR_AGENT_ID_HERE";
 
   const PROFILE_KEY = "logicsmith_profile";
-  const USAGE_KEY = "logicsmith_usage";        // voice seconds
-  const CHAT_USAGE_KEY = "logicsmith_chat_usage"; // chat messages
-  const CHAT_KEY = "logicsmith_chat";          // conversation history
+  const USAGE_KEY = "logicsmith_usage";          // voice seconds
+  const TOKEN_USAGE_KEY = "logicsmith_token_usage"; // chat tokens/day
+  const CHAT_KEY = "logicsmith_chat";            // conversation history
   const POLL_SECONDS = 5;
   const HISTORY_SENT = 30;   // messages sent to the model per request
   const HISTORY_KEPT = 200;  // messages kept on the device
+  const IMG_SEND_DIM = 1568; // max long-edge px for the photo sent to Claude
+  const IMG_THUMB_DIM = 480; // max long-edge px for the stored/displayed thumb
 
   // ---------- storage helpers ----------
   function loadJSON(key) {
@@ -40,24 +42,98 @@
   function voiceLimitSeconds() { return (cfg && cfg.dailyLimitMinutes ? cfg.dailyLimitMinutes : 20) * 60; }
   function voiceLimitReached() { return loadVoiceUsage().seconds >= voiceLimitSeconds(); }
 
-  // ---------- daily usage (chat messages) ----------
-  function loadChatUsage() {
-    let u = loadJSON(CHAT_USAGE_KEY);
-    if (!u || u.date !== today()) u = { date: today(), count: 0 };
+  // ---------- daily usage (chat tokens) ----------
+  // Metered by tokens (input + output) rather than a flat question count, so a
+  // photo — which costs far more tokens — draws down the daily allowance more
+  // than a typed line. Soft, per-device cap; the hard cap is the Anthropic
+  // console spend limit.
+  function loadTokenUsage() {
+    let u = loadJSON(TOKEN_USAGE_KEY);
+    if (!u || u.date !== today()) u = { date: today(), tokens: 0 };
     return u;
   }
-  function addChatUsage() {
-    const u = loadChatUsage();
-    u.count += 1;
-    saveJSON(CHAT_USAGE_KEY, u);
+  function addTokenUsage(n) {
+    const u = loadTokenUsage();
+    u.tokens += Math.max(0, n | 0);
+    saveJSON(TOKEN_USAGE_KEY, u);
     return u;
   }
-  function chatLimit() { return (cfg && cfg.dailyChatMessages ? cfg.dailyChatMessages : 60); }
-  function chatLimitReached() { return loadChatUsage().count >= chatLimit(); }
+  function tokenBudget() { return (cfg && cfg.dailyTokenBudget ? cfg.dailyTokenBudget : 60000); }
+  function chatLimitReached() { return loadTokenUsage().tokens >= tokenBudget(); }
+  function maxImages() { return (cfg && cfg.maxImagesPerMessage ? cfg.maxImagesPerMessage : 4); }
 
   // ---------- chat history ----------
   function loadChat() { return loadJSON(CHAT_KEY) || []; }
   function saveChat(msgs) { saveJSON(CHAT_KEY, msgs.slice(-HISTORY_KEPT)); }
+
+  // ---------- photo attachments ----------
+  // pendingImages: photos staged for the NEXT message. Each item is
+  // { mediaType, data (base64 for the API), thumbUrl (small dataURL to show) }.
+  let pendingImages = [];
+
+  function drawScaled(img, maxDim, quality) {
+    let w = img.naturalWidth || img.width;
+    let h = img.naturalHeight || img.height;
+    const scale = Math.min(1, maxDim / Math.max(w, h));
+    w = Math.max(1, Math.round(w * scale));
+    h = Math.max(1, Math.round(h * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+    const dataUrl = canvas.toDataURL("image/jpeg", quality);
+    return { dataUrl: dataUrl, base64: dataUrl.split(",")[1] };
+  }
+
+  function fileToImage(file) {
+    return new Promise(function (resolve, reject) {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = function () {
+        URL.revokeObjectURL(url);
+        try {
+          const full = drawScaled(img, IMG_SEND_DIM, 0.85);
+          const thumb = drawScaled(img, IMG_THUMB_DIM, 0.8);
+          resolve({ mediaType: "image/jpeg", data: full.base64, thumbUrl: thumb.dataUrl });
+        } catch (e) { reject(e); }
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("bad image")); };
+      img.src = url;
+    });
+  }
+
+  async function addFiles(fileList) {
+    const files = Array.prototype.slice.call(fileList || [])
+      .filter(function (f) { return /^image\/(png|jpe?g|webp)$/i.test(f.type); });
+    for (const f of files) {
+      if (pendingImages.length >= maxImages()) { toast("Up to " + maxImages() + " photos at a time."); break; }
+      if (f.size > 15 * 1024 * 1024) { toast("That photo is too large (max 15MB)."); continue; }
+      try { pendingImages.push(await fileToImage(f)); }
+      catch (e) { toast("Couldn't read that photo — try another."); }
+    }
+    renderPreviews();
+  }
+
+  function renderPreviews() {
+    const wrap = document.getElementById("attach-previews");
+    if (!wrap) return;
+    wrap.innerHTML = "";
+    wrap.hidden = pendingImages.length === 0;
+    pendingImages.forEach(function (im, i) {
+      const cell = document.createElement("div");
+      cell.className = "attach-thumb";
+      const thumb = document.createElement("img");
+      thumb.src = im.thumbUrl;
+      cell.appendChild(thumb);
+      const x = document.createElement("button");
+      x.type = "button";
+      x.className = "attach-remove";
+      x.textContent = "×";
+      x.setAttribute("aria-label", "Remove photo");
+      x.addEventListener("click", function () { pendingImages.splice(i, 1); renderPreviews(); });
+      cell.appendChild(x);
+      wrap.appendChild(cell);
+    });
+  }
 
   // ---------- views ----------
   function show(viewId) {
@@ -249,13 +325,31 @@
     }
   }
 
-  function addBubble(role, text) {
+  function addBubble(role, text, imageUrls) {
     const list = document.getElementById("chat-messages");
     const div = document.createElement("div");
     div.className = "bubble " + (role === "user" ? "bubble-user" : "bubble-tutor");
-    // Assistant messages get the full diagram+formula render; user text stays plain.
-    if (role === "user") renderMessageText(div, text);
-    else finalizeMessage(div, text);
+    if (role === "user") {
+      if (imageUrls && imageUrls.length) {
+        const gallery = document.createElement("div");
+        gallery.className = "bubble-images";
+        imageUrls.forEach(function (u) {
+          const im = document.createElement("img");
+          im.className = "bubble-image";
+          im.src = u;
+          gallery.appendChild(im);
+        });
+        div.appendChild(gallery);
+      }
+      if (text) {
+        const t = document.createElement("div");
+        renderMessageText(t, text);
+        div.appendChild(t);
+      }
+    } else {
+      // Assistant messages get the full diagram + formula render.
+      finalizeMessage(div, text);
+    }
     list.appendChild(div);
     list.scrollTop = list.scrollHeight;
     return div;
@@ -271,7 +365,7 @@
         "Ask me anything from your " + (profile.subjects || "school") + " work — " +
         "or tell me a topic you're stuck on and we'll break it down together.");
     } else {
-      msgs.forEach(function (m) { addBubble(m.role, m.content); });
+      msgs.forEach(function (m) { addBubble(m.role, m.content, m.images); });
     }
   }
 
@@ -296,6 +390,7 @@
     const decoder = new TextDecoder();
     let buf = "";
     let apiError = null;
+    const usage = { inputTokens: 0, outputTokens: 0 };
 
     while (true) {
       const chunk = await reader.read();
@@ -311,6 +406,11 @@
           try { ev = JSON.parse(line.slice(5).trim()); } catch (e) { return; }
           if (ev.type === "content_block_delta" && ev.delta && ev.delta.type === "text_delta") {
             onDelta(ev.delta.text);
+          } else if (ev.type === "message_start" && ev.message && ev.message.usage) {
+            // uncached input (photos land here in full) — cached reads are cheap, so skip
+            usage.inputTokens = ev.message.usage.input_tokens || 0;
+          } else if (ev.type === "message_delta" && ev.usage && ev.usage.output_tokens != null) {
+            usage.outputTokens = ev.usage.output_tokens; // cumulative
           } else if (ev.type === "error" && ev.error) {
             apiError = ev.error.message || "The tutor hit an error.";
           }
@@ -318,6 +418,7 @@
       }
     }
     if (apiError) throw new Error(apiError);
+    return usage;
   }
 
   // ---------- chat behavior ----------
@@ -339,32 +440,59 @@
     }
     if (chatLimitReached()) {
       input.disabled = true; btn.disabled = true;
-      setChatNote("🌙 That's all your questions for today! Your questions reset at midnight — come back tomorrow.");
+      const ab = document.getElementById("attach-btn"); if (ab) ab.disabled = true;
+      setChatNote("🌙 That's your tutoring time for today! Your daily allowance resets at midnight — come back tomorrow.");
       return;
     }
     input.disabled = sending; btn.disabled = sending;
+    const ab = document.getElementById("attach-btn"); if (ab) ab.disabled = sending;
     setChatNote("");
   }
 
   function renderUsagePill() {
     const pill = document.getElementById("usage-pill");
     if (!chatConfigured) { pill.hidden = true; return; }
-    const left = Math.max(0, chatLimit() - loadChatUsage().count);
+    const used = loadTokenUsage().tokens;
+    const leftPct = Math.max(0, Math.min(100, Math.round((1 - used / tokenBudget()) * 100)));
     pill.hidden = false;
-    pill.textContent = "💬 " + left + " questions left today";
+    pill.textContent = (leftPct > 20 ? "🔋 " : "🪫 ") + leftPct + "% left today";
+  }
+
+  // Build the messages array sent to Claude. Photos are attached to the CURRENT
+  // turn only (via `images`, full base64) — older turns are sent as text so a
+  // long history of photos doesn't blow up cost or the request size.
+  function buildApiMessages(msgs, images) {
+    const out = msgs.map(function (m, idx) {
+      const isLast = idx === msgs.length - 1;
+      if (isLast && images && images.length) {
+        const content = images.map(function (im) {
+          return { type: "image", source: { type: "base64", media_type: im.mediaType, data: im.data } };
+        });
+        content.push({ type: "text", text: m.content || "Please help me with this question." });
+        return { role: "user", content: content };
+      }
+      if (m.images && m.images.length) {
+        return { role: m.role, content: (m.content ? m.content + " " : "") + "[photo attached earlier]" };
+      }
+      return { role: m.role, content: m.content };
+    });
+    return out.slice(-HISTORY_SENT);
   }
 
   async function sendMessage(profile, text) {
-    if (sending || !text.trim() || !chatConfigured || chatLimitReached()) return;
+    const images = pendingImages.slice();
+    if (sending || (!text.trim() && !images.length) || !chatConfigured || chatLimitReached()) return;
     sending = true;
+    pendingImages = [];
+    renderPreviews();
     updateChatAvailability();
 
     const msgs = loadChat();
-    msgs.push({ role: "user", content: text.trim() });
+    const stored = { role: "user", content: text.trim() };
+    if (images.length) stored.images = images.map(function (im) { return im.thumbUrl; });
+    msgs.push(stored);
     saveChat(msgs);
-    const userBubble = addBubble("user", text.trim());
-    addChatUsage();
-    renderUsagePill();
+    const userBubble = addBubble("user", text.trim(), stored.images);
 
     const bubble = addBubble("assistant", "…");
     // Anchor the student's question near the top of the chat window, so the
@@ -376,9 +504,9 @@
 
     let reply = "";
     try {
-      await streamReply(
+      const usage = await streamReply(
         P.buildSystemPrompt(profile),
-        msgs.map(function (m) { return { role: m.role, content: m.content }; }),
+        buildApiMessages(msgs, images),
         function (delta) {
           reply += delta;
           renderMessageText(bubble, reply);
@@ -391,6 +519,8 @@
       list.scrollTop = Math.max(0, userBubble.offsetTop - 10);
       msgs.push({ role: "assistant", content: reply });
       saveChat(msgs);
+      addTokenUsage((usage.inputTokens || 0) + (usage.outputTokens || 0));
+      renderUsagePill();
     } catch (err) {
       renderMessageText(bubble, "⚠️ " + (err && err.message ? err.message : "Something went wrong. Try again."));
       // drop the failed user turn so history stays valid for the next try
@@ -590,8 +720,29 @@
         }
       };
 
+      // ---- photo attachments: button, paste, drag-and-drop ----
+      const attachBtn = document.getElementById("attach-btn");
+      const attachInput = document.getElementById("attach-input");
+      attachBtn.onclick = function () { attachInput.click(); };
+      attachInput.onchange = function () { addFiles(attachInput.files); attachInput.value = ""; };
+      input.addEventListener("paste", function (e) {
+        const items = (e.clipboardData && e.clipboardData.files) || null;
+        if (items && items.length) { addFiles(items); }
+      });
+      ["dragover", "dragenter"].forEach(function (ev) {
+        composer.addEventListener(ev, function (e) { e.preventDefault(); composer.classList.add("dragover"); });
+      });
+      ["dragleave", "drop"].forEach(function (ev) {
+        composer.addEventListener(ev, function (e) { e.preventDefault(); composer.classList.remove("dragover"); });
+      });
+      composer.addEventListener("drop", function (e) {
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+      });
+
       document.getElementById("new-chat-btn").onclick = function () {
         saveChat([]);
+        pendingImages = [];
+        renderPreviews();
         renderHistory(profile);
         toast("Fresh start! Your tutor still remembers your profile. ✨");
       };
