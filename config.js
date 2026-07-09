@@ -15,7 +15,11 @@
 //   Anthropic console. Change this number freely.
 // maxImagesPerMessage: how many photos a student can attach to one question.
 // dailyLimitMinutes: soft cap on voice-call minutes per device/day.
-//   Also set hard limits in the ElevenLabs dashboard (README).
+//   IMPORTANT: voice calls are billed by ElevenLabs in MINUTES from your plan's
+//   included ElevenAgents allowance (Free = ~15 min/MONTH, shared across ALL
+//   students), NOT from the 10k TTS credits. This per-device DAILY cap does not
+//   protect that shared monthly pool — set a hard MONTHLY limit in the
+//   ElevenLabs dashboard too (README). Kept low on the free plan.
 // suggestions: the "tap to ask" starter questions shown in the app.
 // ============================================================
 
@@ -26,7 +30,7 @@ const LOGICSMITH_CONFIG = {
 
   dailyTokenBudget: 60000,
   maxImagesPerMessage: 4,
-  dailyLimitMinutes: 20,
+  dailyLimitMinutes: 5,
 
   suggestions: [
     "I don't understand decimals at all",
