@@ -16,8 +16,13 @@ Live site: `https://logicsmith13.github.io/LogiCSmith/`
 
 | Feature | AI brain | Billed from |
 | --- | --- | --- |
-| 💬 **Text chat** (main) | **Claude API** (Anthropic) | Your **Anthropic API** credits |
-| 📞 **Voice call** (optional tab) | **ElevenLabs Agents** (voice + its own LLM) | Your **ElevenLabs** credits |
+| 💬 **Text Chat** (main) | **Claude API** (Anthropic) | Your **Anthropic API** credits |
+| 🎙️ **Voice Chat** (browser speech) | **Claude API** — same brain and prompt as text chat; the browser does the listening/speaking for free | Your **Anthropic API** credits (same daily token budget) |
+| 📞 **Call** (ElevenLabs test tab) | **ElevenLabs Agents** (voice + its own LLM) | Your **ElevenLabs** call minutes (Free plan ≈ 15 min/month, shared) |
+
+Students also get a **Claude-style sidebar of past chats**. Chats are stored in
+the browser's localStorage only — storing them costs zero credits; each request
+still sends only the active chat's recent messages.
 
 Two important billing facts:
 

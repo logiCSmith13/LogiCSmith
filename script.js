@@ -62,9 +62,162 @@
   function chatLimitReached() { return loadTokenUsage().tokens >= tokenBudget(); }
   function maxImages() { return (cfg && cfg.maxImagesPerMessage ? cfg.maxImagesPerMessage : 4); }
 
-  // ---------- chat history ----------
-  function loadChat() { return loadJSON(CHAT_KEY) || []; }
-  function saveChat(msgs) { saveJSON(CHAT_KEY, msgs.slice(-HISTORY_KEPT)); }
+  // ---------- chat history (multi-conversation, Claude-style sidebar) ----------
+  // All chats live in localStorage on the device — storing them costs ZERO
+  // API credits. Only the ACTIVE chat's last HISTORY_SENT messages are sent
+  // per request, same as before.
+  const CONVOS_KEY = "logicsmith_convos";
+  const MAX_CONVOS = 20; // keep localStorage bounded (photo thumbs add up)
+
+  function newConvo() {
+    return { id: "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), title: "", msgs: [], updatedAt: Date.now() };
+  }
+
+  function loadStore() {
+    let s = loadJSON(CONVOS_KEY);
+    if (!s || !Array.isArray(s.list)) {
+      s = { activeId: null, list: [] };
+      // migrate the old single-chat storage into the first conversation
+      const legacy = loadJSON(CHAT_KEY);
+      if (Array.isArray(legacy) && legacy.length) {
+        const c = newConvo();
+        c.msgs = legacy;
+        s.list.push(c);
+        s.activeId = c.id;
+        saveJSON(CONVOS_KEY, s);
+        try { localStorage.removeItem(CHAT_KEY); } catch (e) { /* ignore */ }
+      }
+    }
+    return s;
+  }
+  function saveStore(s) { saveJSON(CONVOS_KEY, s); }
+
+  function activeConvo(s) {
+    let c = s.list.find(function (x) { return x.id === s.activeId; });
+    if (!c) {
+      c = newConvo();
+      s.list.push(c);
+      s.activeId = c.id;
+    }
+    return c;
+  }
+
+  function pruneConvos(s) {
+    if (s.list.length <= MAX_CONVOS) return;
+    s.list
+      .filter(function (c) { return c.id !== s.activeId; })
+      .sort(function (a, b) { return a.updatedAt - b.updatedAt; })
+      .slice(0, s.list.length - MAX_CONVOS)
+      .forEach(function (old) {
+        s.list.splice(s.list.indexOf(old), 1);
+      });
+  }
+
+  function loadChat() { const s = loadStore(); return activeConvo(s).msgs; }
+
+  // Returns the active conversation's id, persisting it if it was just created.
+  // Message sends pin themselves to this id so a reply that finishes streaming
+  // AFTER the student switched/started another chat still lands in the right one.
+  function ensureActiveId() {
+    const s = loadStore();
+    const before = s.activeId;
+    const c = activeConvo(s);
+    if (s.activeId !== before) saveStore(s);
+    return c.id;
+  }
+
+  function saveChat(msgs, convoId) {
+    const s = loadStore();
+    let c;
+    if (convoId) {
+      c = s.list.find(function (x) { return x.id === convoId; });
+      if (!c) return; // conversation was deleted mid-stream — drop silently
+    } else {
+      c = activeConvo(s);
+    }
+    c.msgs = msgs.slice(-HISTORY_KEPT);
+    c.updatedAt = Date.now();
+    if (!c.title) {
+      const firstUser = c.msgs.find(function (m) { return m.role === "user" && m.content; });
+      if (firstUser) c.title = firstUser.content.slice(0, 42);
+    }
+    pruneConvos(s);
+    saveStore(s);
+    renderSidebar();
+  }
+
+  function startNewConvo() {
+    const s = loadStore();
+    const current = s.list.find(function (x) { return x.id === s.activeId; });
+    if (current && current.msgs.length === 0) return; // already on a fresh chat
+    const c = newConvo();
+    s.list.push(c);
+    s.activeId = c.id;
+    pruneConvos(s);
+    saveStore(s);
+    renderSidebar();
+  }
+
+  function switchConvo(id) {
+    const s = loadStore();
+    if (!s.list.some(function (x) { return x.id === id; })) return;
+    s.activeId = id;
+    saveStore(s);
+    renderSidebar();
+  }
+
+  function deleteConvo(id) {
+    const s = loadStore();
+    const i = s.list.findIndex(function (x) { return x.id === id; });
+    if (i === -1) return;
+    s.list.splice(i, 1);
+    if (s.activeId === id) {
+      const latest = s.list.slice().sort(function (a, b) { return b.updatedAt - a.updatedAt; })[0];
+      s.activeId = latest ? latest.id : null;
+    }
+    saveStore(s);
+    renderSidebar();
+  }
+
+  // set inside enterChat; used by sidebar clicks to re-render history
+  let currentProfile = null;
+
+  function closeSidebarDrawer() { document.body.classList.remove("sidebar-open"); document.getElementById("sidebar-backdrop").hidden = true; }
+
+  function renderSidebar() {
+    const nav = document.getElementById("convo-list");
+    if (!nav) return;
+    const s = loadStore();
+    nav.innerHTML = "";
+    s.list
+      .slice()
+      .sort(function (a, b) { return b.updatedAt - a.updatedAt; })
+      .forEach(function (c) {
+        const item = document.createElement("div");
+        item.className = "convo-item" + (c.id === s.activeId ? " active" : "");
+        const title = document.createElement("span");
+        title.className = "convo-title";
+        title.textContent = c.title || "New chat";
+        item.appendChild(title);
+        const del = document.createElement("button");
+        del.type = "button";
+        del.className = "convo-del";
+        del.textContent = "🗑";
+        del.setAttribute("aria-label", "Delete chat");
+        del.addEventListener("click", function (e) {
+          e.stopPropagation();
+          deleteConvo(c.id);
+          if (currentProfile) renderHistory(currentProfile);
+        });
+        item.appendChild(del);
+        item.addEventListener("click", function () {
+          switchConvo(c.id);
+          if (currentProfile) renderHistory(currentProfile);
+          closeSidebarDrawer();
+        });
+        nav.appendChild(item);
+      });
+  }
 
   // ---------- photo attachments ----------
   // pendingImages: photos staged for the NEXT message. Each item is
@@ -370,12 +523,14 @@
   }
 
   // ---------- Claude streaming ----------
-  async function streamReply(systemPrompt, messages, onDelta) {
+  async function streamReply(systemPrompt, messages, onDelta, opts) {
+    const system = [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }];
+    if (opts && opts.extraSystem) system.push({ type: "text", text: opts.extraSystem });
     const res = await fetch(cfg.tutorProxyUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
+        system: system,
         messages: messages.slice(-HISTORY_SENT),
       }),
     });
@@ -487,11 +642,12 @@
     renderPreviews();
     updateChatAvailability();
 
+    const convoId = ensureActiveId(); // pin this send to the current conversation
     const msgs = loadChat();
     const stored = { role: "user", content: text.trim() };
     if (images.length) stored.images = images.map(function (im) { return im.thumbUrl; });
     msgs.push(stored);
-    saveChat(msgs);
+    saveChat(msgs, convoId);
     const userBubble = addBubble("user", text.trim(), stored.images);
 
     const bubble = addBubble("assistant", "…");
@@ -518,18 +674,203 @@
       // (Short replies that already fit stay put — scrollTop clamps to 0.)
       list.scrollTop = Math.max(0, userBubble.offsetTop - 10);
       msgs.push({ role: "assistant", content: reply });
-      saveChat(msgs);
+      saveChat(msgs, convoId);
       addTokenUsage((usage.inputTokens || 0) + (usage.outputTokens || 0));
       renderUsagePill();
     } catch (err) {
       renderMessageText(bubble, "⚠️ " + (err && err.message ? err.message : "Something went wrong. Try again."));
       // drop the failed user turn so history stays valid for the next try
       msgs.pop();
-      saveChat(msgs);
+      saveChat(msgs, convoId);
     } finally {
       sending = false;
       updateChatAvailability();
       document.getElementById("chat-input").focus();
+    }
+  }
+
+  // ---------- browser voice chat (free — same Claude brain as text chat) ----------
+  // Uses the browser's built-in speech recognition + speech synthesis, so it
+  // costs no voice-platform fees and is guaranteed to teach identically to the
+  // text tutor (same worker, same prompt, same conversation history). Voice
+  // turns draw from the same daily token budget.
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let voiceState = "idle"; // idle | listening | thinking | speaking
+  let recog = null;
+
+  const VOICE_SYSTEM_HINT =
+    "VOICE CHAT MODE: the student is speaking to you by voice and will HEAR your reply read aloud. " +
+    "Reply in 2-4 short, plain, speakable sentences. No LaTeX, no SVG, no markdown, no bullet lists, no headings. " +
+    "Say maths naturally: 'x squared', 'two thirds', 'one half times base times height'. " +
+    "Then pause for the student — one idea, then check in.";
+
+  function setVoiceUI(state, statusText) {
+    voiceState = state;
+    const orb = document.getElementById("voice-orb");
+    const status = document.getElementById("voice-status");
+    if (!orb) return;
+    orb.className = "voice-orb" + (state === "idle" ? "" : " " + state);
+    orb.textContent = state === "listening" ? "🔴" : state === "thinking" ? "💭" : state === "speaking" ? "🔊" : "🎙️";
+    status.textContent = statusText;
+  }
+
+  // Make a streamed reply speakable: drop diagrams, flatten LaTeX, expand symbols.
+  function speakableText(t) {
+    return latexToPlain(
+      t.replace(/```svg[\s\S]*?```/gi, " I've drawn a diagram — open the Text Chat tab to see it. ")
+       .replace(/\\\[([\s\S]*?)\\\]|\\\(([\s\S]*?)\\\)/g, function (_, a, b) { return " " + (a != null ? a : b) + " "; })
+    )
+      .replace(/\*\*/g, "")
+      .replace(/×/g, " times ").replace(/÷/g, " divided by ")
+      .replace(/√/g, " square root of ").replace(/π/g, " pi ")
+      .replace(/\^/g, " to the power of ")
+      .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "")
+      .replace(/\s+/g, " ").trim();
+  }
+
+  function pickVoice() {
+    const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+    return (
+      voices.find(function (v) { return /en[-_](SG|GB)/i.test(v.lang) && /google/i.test(v.name); }) ||
+      voices.find(function (v) { return /en[-_](SG|GB)/i.test(v.lang); }) ||
+      voices.find(function (v) { return /^en/i.test(v.lang); }) ||
+      null
+    );
+  }
+
+  function speakChunk(text, onend) {
+    const clean = speakableText(text);
+    if (!clean) { if (onend) onend(); return; }
+    const u = new SpeechSynthesisUtterance(clean);
+    const v = pickVoice();
+    if (v) u.voice = v;
+    u.rate = 1.0;
+    if (onend) u.onend = onend;
+    window.speechSynthesis.speak(u);
+  }
+
+  function stopVoiceOutput() {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    if (recog) { try { recog.abort(); } catch (e) { /* ignore */ } recog = null; }
+    setVoiceUI("idle", "Tap the mic and ask your question");
+  }
+
+  async function voiceAsk(profile, text) {
+    const transcriptEl = document.getElementById("voice-transcript");
+    const replyEl = document.getElementById("voice-reply");
+    transcriptEl.hidden = false;
+    transcriptEl.textContent = "“" + text + "”";
+    replyEl.hidden = false;
+    replyEl.textContent = "…";
+    setVoiceUI("thinking", "Thinking…");
+
+    const convoId = ensureActiveId();
+    const msgs = loadChat();
+    msgs.push({ role: "user", content: text });
+    saveChat(msgs, convoId);
+
+    let reply = "";
+    let spokenUpTo = 0; // speak sentence-by-sentence while streaming
+    let pendingUtterances = 0;
+    let streamDone = false;
+    function maybeFinish() {
+      if (streamDone && pendingUtterances === 0 && voiceState !== "idle") {
+        setVoiceUI("idle", "Tap the mic to reply");
+      }
+    }
+    function speakNewSentences(force) {
+      const boundary = force ? reply.length : (function () {
+        const m = reply.slice(spokenUpTo).search(/[.!?]\s[A-Z0-9]|[.!?]$|\n/);
+        return m === -1 ? -1 : spokenUpTo + m + 1;
+      })();
+      if (boundary > spokenUpTo) {
+        const chunk = reply.slice(spokenUpTo, boundary);
+        spokenUpTo = boundary;
+        pendingUtterances += 1;
+        setVoiceUI("speaking", "Speaking — tap the mic to interrupt");
+        speakChunk(chunk, function () {
+          pendingUtterances -= 1;
+          maybeFinish();
+        });
+      }
+    }
+
+    try {
+      const usage = await streamReply(
+        P.buildSystemPrompt(profile),
+        buildApiMessages(msgs, []),
+        function (delta) {
+          reply += delta;
+          replyEl.textContent = reply;
+          speakNewSentences(false);
+        },
+        { extraSystem: VOICE_SYSTEM_HINT }
+      );
+      finalizeMessage(replyEl, reply);
+      msgs.push({ role: "assistant", content: reply });
+      saveChat(msgs, convoId);
+      addTokenUsage((usage.inputTokens || 0) + (usage.outputTokens || 0));
+      renderUsagePill();
+      streamDone = true;
+      speakNewSentences(true); // speak any trailing partial sentence
+      maybeFinish();
+    } catch (err) {
+      msgs.pop();
+      saveChat(msgs, convoId);
+      streamDone = true;
+      setVoiceUI("idle", "⚠️ " + (err && err.message ? err.message : "Something went wrong — try again."));
+    }
+  }
+
+  function voiceOrbTap(profile) {
+    if (!SpeechRec) {
+      setVoiceUI("idle", "Voice chat needs Chrome, Edge or Safari on this device.");
+      return;
+    }
+    if (!chatConfigured) return;
+    if (chatLimitReached()) {
+      setVoiceUI("idle", "🌙 That's your tutoring time for today — come back tomorrow!");
+      return;
+    }
+    if (voiceState === "speaking" || voiceState === "thinking") {
+      stopVoiceOutput(); // interrupt, then fall through to listen
+    } else if (voiceState === "listening") {
+      if (recog) { try { recog.stop(); } catch (e) { /* ignore */ } }
+      return;
+    }
+
+    recog = new SpeechRec();
+    recog.lang = "en-SG";
+    recog.interimResults = true;
+    recog.maxAlternatives = 1;
+    let finalText = "";
+    const transcriptEl = document.getElementById("voice-transcript");
+
+    recog.onresult = function (ev) {
+      let interim = "";
+      for (let i = ev.resultIndex; i < ev.results.length; i++) {
+        if (ev.results[i].isFinal) finalText += ev.results[i][0].transcript;
+        else interim += ev.results[i][0].transcript;
+      }
+      transcriptEl.hidden = false;
+      transcriptEl.textContent = "“" + (finalText || interim) + "”";
+    };
+    recog.onerror = function (ev) {
+      recog = null;
+      setVoiceUI("idle", ev.error === "not-allowed"
+        ? "Please allow microphone access to use voice chat."
+        : "Didn't catch that — tap the mic and try again.");
+    };
+    recog.onend = function () {
+      recog = null;
+      if (finalText.trim()) voiceAsk(profile, finalText.trim());
+      else if (voiceState === "listening") setVoiceUI("idle", "Didn't catch that — tap the mic and try again.");
+    };
+
+    setVoiceUI("listening", "Listening… speak your question, then pause");
+    try { recog.start(); } catch (e) {
+      recog = null;
+      setVoiceUI("idle", "Couldn't start the microphone — try again.");
     }
   }
 
@@ -568,7 +909,30 @@
     if (cfg.endCallText) widget.setAttribute("end-call-text", cfg.endCallText);
     if (cfg.orbColor1) widget.setAttribute("avatar-orb-color-1", cfg.orbColor1);
     if (cfg.orbColor2) widget.setAttribute("avatar-orb-color-2", cfg.orbColor2);
+    widget.setAttribute("text-input", "false"); // this is a CALL — no text box
     slot.appendChild(widget);
+    hideWidgetComposer(widget);
+  }
+
+  // The widget's built-in "send a message" text box clutters the call tab
+  // (especially on mobile). Belt-and-braces: the text-input attribute above,
+  // plus a style injected into the widget's (open) shadow DOM.
+  function hideWidgetComposer(widget) {
+    let tries = 0;
+    const timer = setInterval(function () {
+      tries += 1;
+      if (widget.shadowRoot) {
+        if (!widget.shadowRoot.getElementById("ls-hide-composer")) {
+          const st = document.createElement("style");
+          st.id = "ls-hide-composer";
+          st.textContent = "textarea, input[type='text'] { display: none !important; }";
+          widget.shadowRoot.appendChild(st);
+        }
+        clearInterval(timer);
+      } else if (tries > 40 || !document.contains(widget)) {
+        clearInterval(timer);
+      }
+    }, 250);
   }
 
   function unmountWidget() {
@@ -603,7 +967,7 @@
 
   function startVoiceUsageWatcher() {
     setInterval(function () {
-      if (document.getElementById("voice-panel").hidden) return;
+      if (document.getElementById("call-panel").hidden) return;
       if (callIsActive()) {
         addVoiceUsage(POLL_SECONDS);
         renderVoiceUsage();
@@ -615,22 +979,27 @@
     }, POLL_SECONDS * 1000);
   }
 
-  // ---------- tabs ----------
+  // ---------- tabs (Text Chat / Voice Chat / Call) ----------
+  const TABS = [
+    { name: "chat", tabId: "tab-chat", panelId: "chat-panel" },
+    { name: "voice", tabId: "tab-voice", panelId: "voice-chat-panel" },
+    { name: "call", tabId: "tab-call", panelId: "call-panel" },
+  ];
+
   function switchTab(tab, profile) {
-    const chatTab = document.getElementById("tab-chat");
-    const voiceTab = document.getElementById("tab-voice");
-    const chatPanel = document.getElementById("chat-panel");
-    const voicePanel = document.getElementById("voice-panel");
-    const isChat = tab === "chat";
-    chatTab.classList.toggle("active", isChat);
-    voiceTab.classList.toggle("active", !isChat);
-    chatPanel.hidden = !isChat;
-    voicePanel.hidden = isChat;
-    if (isChat) {
-      unmountWidget();
-    } else {
+    TABS.forEach(function (t) {
+      document.getElementById(t.tabId).classList.toggle("active", t.name === tab);
+      document.getElementById(t.panelId).hidden = t.name !== tab;
+    });
+    // leaving a mode: stop whatever it was doing
+    if (tab !== "call") unmountWidget();
+    if (tab !== "voice") stopVoiceOutput();
+    if (tab === "call") {
       mountWidget(profile);
       renderVoiceUsage();
+    }
+    if (tab === "chat") {
+      renderHistory(profile); // voice turns share the history — refresh bubbles
     }
   }
 
@@ -681,6 +1050,7 @@
       document.getElementById("profile-title").textContent = "Update your profile ✏️";
       fillForm(loadProfile());
       unmountWidget();
+      stopVoiceOutput();
       show("profile-view");
     });
 
@@ -692,9 +1062,11 @@
     });
 
     function enterChat(profile) {
+      currentProfile = profile;
       document.getElementById("greeting").textContent =
         "Hey " + (profile.name || "there") + "! What are we working on?";
       renderHistory(profile);
+      renderSidebar();
       renderChips(profile);
       renderUsagePill();
       updateChatAvailability();
@@ -704,6 +1076,27 @@
 
       document.getElementById("tab-chat").onclick = function () { switchTab("chat", profile); };
       document.getElementById("tab-voice").onclick = function () { switchTab("voice", profile); };
+      document.getElementById("tab-call").onclick = function () { switchTab("call", profile); };
+      document.getElementById("voice-orb").onclick = function () { voiceOrbTap(profile); };
+
+      // ---- sidebar: new chat, mobile drawer ----
+      document.getElementById("sidebar-new").onclick = function () {
+        startNewConvo();
+        pendingImages = [];
+        renderPreviews();
+        renderHistory(profile);
+        switchTab("chat", profile);
+        closeSidebarDrawer();
+        toast("Fresh start! Your older chats are in the sidebar. ✨");
+      };
+      const sidebarToggle = document.getElementById("sidebar-toggle");
+      const backdrop = document.getElementById("sidebar-backdrop");
+      sidebarToggle.hidden = false;
+      sidebarToggle.onclick = function () {
+        const open = document.body.classList.toggle("sidebar-open");
+        backdrop.hidden = !open;
+      };
+      backdrop.onclick = closeSidebarDrawer;
 
       const composer = document.getElementById("composer");
       const input = document.getElementById("chat-input");
@@ -739,13 +1132,6 @@
         if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
       });
 
-      document.getElementById("new-chat-btn").onclick = function () {
-        saveChat([]);
-        pendingImages = [];
-        renderPreviews();
-        renderHistory(profile);
-        toast("Fresh start! Your tutor still remembers your profile. ✨");
-      };
     }
 
     const existing = loadProfile();
