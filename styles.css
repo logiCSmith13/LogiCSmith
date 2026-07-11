@@ -13,6 +13,35 @@
   --shadow: 0 8px 30px rgba(43, 35, 80, 0.1);
 }
 
+/* ---- Dark mode (deep navy to match the LogiCSmith logo) ---- */
+html[data-theme="dark"] {
+  --bg: #0b1c3f;
+  --bg-alt: #12294f;
+  --surface: #16294d;
+  --text: #eaf0ff;
+  --text-dim: #a6b6dd;
+  --accent: #8b7cf6;
+  --accent-2: #22c7c0;
+  --accent-soft: rgba(139, 124, 246, 0.20);
+  --border: rgba(255, 255, 255, 0.13);
+  --shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
+}
+html[data-theme="dark"] body {
+  background:
+    radial-gradient(700px 340px at 85% 0%, rgba(34, 199, 192, 0.10), transparent),
+    radial-gradient(600px 340px at 5% 100%, rgba(139, 124, 246, 0.16), transparent),
+    var(--bg);
+}
+html[data-theme="dark"] .topbar { background: rgba(11, 28, 63, 0.85); }
+html[data-theme="dark"] .brand-name { color: #eaf0ff; } /* navy default is invisible on dark */
+/* Tutor-drawn SVG diagrams are usually dark strokes on transparent — keep a
+   light card behind them so they stay readable on the dark theme. */
+html[data-theme="dark"] .diagram {
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px;
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body { height: 100%; }
@@ -49,11 +78,11 @@ h1, .brand-name { font-family: "Sora", system-ui, sans-serif; }
   align-items: center;
   justify-content: space-between;
 }
-.brand { display: flex; align-items: center; gap: 8px; }
+.brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .brand-mark { font-size: 1.3rem; }
 #brand-logo { height: 38px; width: auto; border-radius: 8px; display: block; }
 #brand-logo[hidden] { display: none; }
-.brand-name { font-weight: 800; font-size: 1.15rem; letter-spacing: -0.02em; color: #1b2a6b; }
+.brand-name { font-weight: 800; font-size: 1.15rem; letter-spacing: -0.02em; color: #1b2a6b; white-space: nowrap; }
 .brand-accent { color: #19c3d4; }
 .sidebar-toggle {
   font: inherit;
@@ -65,15 +94,41 @@ h1, .brand-name { font-family: "Sora", system-ui, sans-serif; }
   cursor: pointer;
   margin-right: 4px;
 }
-.topbar-right { display: flex; align-items: center; gap: 12px; }
+.topbar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
 .usage-pill {
   background: var(--accent-soft);
   color: var(--accent);
   font-size: 0.82rem;
-  font-weight: 600;
-  padding: 5px 12px;
+  font-weight: 700;
+  padding: 5px 11px;
   border-radius: 999px;
+  white-space: nowrap;
+}
+.usage-pill.low { color: #e06c6c; background: rgba(224, 108, 108, 0.15); }
+
+/* icon-only theme toggle — keeps the header uncluttered on mobile */
+.btn-icon {
+  font-size: 1.05rem;
+  line-height: 1;
+  color: var(--text);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+.btn-icon:hover { border-color: var(--accent); }
+
+@media (max-width: 560px) {
+  .topbar-inner { padding: 0 12px; }
+  .brand-name { font-size: 1.02rem; }
+  .btn-ghost-small { padding: 7px 11px; }
 }
 
 .btn-ghost-small {
@@ -588,7 +643,7 @@ textarea { resize: vertical; }
   transform: translateX(-50%);
   z-index: 200;
   background: var(--text);
-  color: #fff;
+  color: var(--bg);
   padding: 11px 20px;
   border-radius: 999px;
   font-size: 0.9rem;
@@ -602,7 +657,7 @@ textarea { resize: vertical; }
   left: 50%; bottom: 20px;
   transform: translateX(-50%);
   z-index: 100;
-  background: #fff;
+  background: var(--surface);
   border: 2px solid var(--accent);
   border-radius: 12px;
   padding: 14px 20px;
