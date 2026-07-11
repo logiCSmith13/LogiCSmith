@@ -113,6 +113,70 @@
       });
   }
 
+  // ---------- automatic chat titles (topic-based, like Claude/GPT — free, local) ----------
+  // We title a chat from its first question. A keyword bank maps common Singapore
+  // MOE topics to a clean label; anything unmatched falls back to a tidied-up
+  // version of what the student typed. No API call, so titling costs no credits.
+  const TOPIC_HINTS = [
+    [/\bfraction/i, "Fractions"],
+    [/\bdecimal/i, "Decimals"],
+    [/\bpercentage|percent\b/i, "Percentage"],
+    [/\bratio\b|\brate\b/i, "Ratio & rate"],
+    [/\baverage|\bmean\b/i, "Averages"],
+    [/\bquadratic|discriminant|parabola/i, "Quadratic equations"],
+    [/\balgebra|simultaneous|solve for|\bequation/i, "Algebra"],
+    [/\btrigonometr|\bsine\b|\bcosine\b|\btangent\b|\bsin\b|\bcos\b|\btan\b/i, "Trigonometry"],
+    [/\bdifferentiat|\bderivative/i, "Differentiation"],
+    [/\bintegrat/i, "Integration"],
+    [/\bvector/i, "Vectors"],
+    [/\bprobabilit/i, "Probability"],
+    [/\bstatistic|histogram|box.?plot|standard deviation/i, "Statistics"],
+    [/\bgraph|coordinate|gradient|straight line/i, "Graphs"],
+    [/\bspeed|\bdistance\b|\btime\b.*\bspeed\b/i, "Speed"],
+    [/\bmoney|\bcost\b|profit|discount|\bgst\b/i, "Money problems"],
+    [/\bangle|triangle|\bcircle\b|polygon|\barea\b|perimeter|\bvolume\b/i, "Geometry & measurement"],
+    [/\bphotosynthesis/i, "Photosynthesis"],
+    [/\bheat|temperature|thermal|conduction|convection/i, "Heat"],
+    [/\blight|reflection|refraction|\blens\b/i, "Light"],
+    [/\bforce|friction|gravity|\bmotion\b|newton/i, "Forces & motion"],
+    [/\belectric|circuit|current|voltage|resistance/i, "Electricity"],
+    [/\bmagnet/i, "Magnetism"],
+    [/\bcell\b|digestive|respiratory|circulatory|\borgan\b/i, "Human body systems"],
+    [/\bplant|\broot\b|\bstem\b|\bleaf\b|\bleaves\b|germinat/i, "Plants"],
+    [/\banimal|life ?cycle|habitat|adaptation/i, "Animals & habitats"],
+    [/\bmatter\b|\bsolid\b|\bliquid\b|\bgas\b|state of matter/i, "States of matter"],
+    [/\bacid|\balkali|\bbase\b|\bph\b|neutralis/i, "Acids & alkalis"],
+    [/\benergy\b/i, "Energy"],
+    [/\becosystem|food ?chain|food ?web/i, "Ecosystems"],
+    [/\bcomprehension|\bpassage\b|inference/i, "Comprehension"],
+    [/\bcomposition|\bessay\b|narrative|write.*(story|essay)/i, "Composition writing"],
+    [/\bsituational writing|\bemail\b|\bletter\b|\breport\b/i, "Situational writing"],
+    [/\bgrammar|\btense\b|preposition|subject.?verb|singular|plural/i, "Grammar"],
+    [/\bvocabular|synonym|antonym|meaning of/i, "Vocabulary"],
+    [/\bsummary|summaris|summariz/i, "Summary writing"],
+    [/\bcloze\b/i, "Cloze passage"],
+    [/\boral\b|stimulus/i, "Oral"],
+  ];
+
+  function deriveTitle(text) {
+    const t = (text || "").replace(/\s+/g, " ").trim();
+    if (!t) return "";
+    for (let i = 0; i < TOPIC_HINTS.length; i++) {
+      if (TOPIC_HINTS[i][0].test(t)) return TOPIC_HINTS[i][1];
+    }
+    // Fallback: strip common lead-ins, then take the first few words.
+    let s = t.replace(
+      /^(hi|hey|hello|please|pls|plz|ok|okay|so|um|erm|can you|could you|would you|help me( with)?|i need help( with)?|how (do|can|would) i|how to|how does|what (is|are|does)|why (is|does|do)|explain|teach me|show me|tell me|i (don'?t|dont|do not) (get|understand|know)|i'?m (stuck|confused)( on| about| with)?)\b[\s,.:;-]*/i,
+      ""
+    ).trim();
+    if (!s) s = t;
+    const words = s.split(" ").slice(0, 7).join(" ");
+    let title = words.length > 42 ? words.slice(0, 42).replace(/\s\S*$/, "") : words;
+    title = title.replace(/[\s.?!,;:]+$/, "").trim();
+    if (!title) return "";
+    return title.charAt(0).toUpperCase() + title.slice(1);
+  }
+
   function loadChat() { const s = loadStore(); return activeConvo(s).msgs; }
 
   // Returns the active conversation's id, persisting it if it was just created.
@@ -137,9 +201,10 @@
     }
     c.msgs = msgs.slice(-HISTORY_KEPT);
     c.updatedAt = Date.now();
-    if (!c.title) {
+    // Auto-title from the first question — unless the student renamed it.
+    if (!c.title && !c.titleLocked) {
       const firstUser = c.msgs.find(function (m) { return m.role === "user" && m.content; });
-      if (firstUser) c.title = firstUser.content.slice(0, 42);
+      if (firstUser) c.title = deriveTitle(firstUser.content);
     }
     pruneConvos(s);
     saveStore(s);
@@ -162,6 +227,18 @@
     const s = loadStore();
     if (!s.list.some(function (x) { return x.id === id; })) return;
     s.activeId = id;
+    saveStore(s);
+    renderSidebar();
+  }
+
+  function renameConvo(id, title) {
+    const s = loadStore();
+    const c = s.list.find(function (x) { return x.id === id; });
+    if (!c) return;
+    const clean = (title || "").replace(/\s+/g, " ").trim().slice(0, 60);
+    if (!clean) return; // ignore blank rename — keep the existing title
+    c.title = clean;
+    c.titleLocked = true; // a manual name is never overwritten by auto-titling
     saveStore(s);
     renderSidebar();
   }
@@ -199,11 +276,48 @@
         title.className = "convo-title";
         title.textContent = c.title || "New chat";
         item.appendChild(title);
+
+        // Inline rename: turns the title into a text box the student can edit.
+        function beginRename() {
+          const inp = document.createElement("input");
+          inp.type = "text";
+          inp.className = "convo-rename";
+          inp.value = c.title || "";
+          inp.maxLength = 60;
+          inp.setAttribute("aria-label", "Rename chat");
+          let done = false;
+          function commit(save) {
+            if (done) return; done = true;
+            if (save) renameConvo(c.id, inp.value);
+            else renderSidebar();
+          }
+          inp.addEventListener("click", function (e) { e.stopPropagation(); });
+          inp.addEventListener("keydown", function (e) {
+            e.stopPropagation();
+            if (e.key === "Enter") { e.preventDefault(); commit(true); }
+            else if (e.key === "Escape") { e.preventDefault(); commit(false); }
+          });
+          inp.addEventListener("blur", function () { commit(true); });
+          item.replaceChild(inp, title);
+          inp.focus();
+          inp.select();
+        }
+
+        const ren = document.createElement("button");
+        ren.type = "button";
+        ren.className = "convo-ren";
+        ren.textContent = "✏️";
+        ren.setAttribute("aria-label", "Rename chat");
+        ren.setAttribute("title", "Rename chat");
+        ren.addEventListener("click", function (e) { e.stopPropagation(); beginRename(); });
+        item.appendChild(ren);
+
         const del = document.createElement("button");
         del.type = "button";
         del.className = "convo-del";
         del.textContent = "🗑";
         del.setAttribute("aria-label", "Delete chat");
+        del.setAttribute("title", "Delete chat");
         del.addEventListener("click", function (e) {
           e.stopPropagation();
           deleteConvo(c.id);
@@ -215,6 +329,8 @@
           if (currentProfile) renderHistory(currentProfile);
           closeSidebarDrawer();
         });
+        // Double-clicking the title is a quick shortcut to rename.
+        title.addEventListener("dblclick", function (e) { e.stopPropagation(); beginRename(); });
         nav.appendChild(item);
       });
   }
@@ -638,6 +754,8 @@
     const images = pendingImages.slice();
     if (sending || (!text.trim() && !images.length) || !chatConfigured || chatLimitReached()) return;
     sending = true;
+    stopDictation();  // finish any live dictation before we send
+    stopSpeaking();   // silence a previous reply that's still being read out
     pendingImages = [];
     renderPreviews();
     updateChatAvailability();
@@ -659,6 +777,7 @@
     list.scrollTop = Math.max(0, userBubble.offsetTop - 10);
 
     let reply = "";
+    const speaker = readAloudOn() ? makeSpeaker() : null; // read the reply aloud?
     try {
       const usage = await streamReply(
         P.buildSystemPrompt(profile),
@@ -666,8 +785,10 @@
         function (delta) {
           reply += delta;
           renderMessageText(bubble, reply);
+          if (speaker) speaker.feed(reply);
         }
       );
+      if (speaker) speaker.flush(); // speak any trailing partial sentence
       finalizeMessage(bubble, reply); // render diagrams + formulas once complete
       // Re-anchor now that the full reply exists below the question: pins the
       // question at the top so the student reads the reply top-to-bottom.
@@ -689,35 +810,19 @@
     }
   }
 
-  // ---------- browser voice chat (free — same Claude brain as text chat) ----------
-  // Uses the browser's built-in speech recognition + speech synthesis, so it
-  // costs no voice-platform fees and is guaranteed to teach identically to the
-  // text tutor (same worker, same prompt, same conversation history). Voice
-  // turns draw from the same daily token budget.
+  // ---------- in-chat voice: mic dictation + read-aloud (free browser speech) ----------
+  // Voice lives INSIDE the text chat now: the 🎤 button dictates the student's
+  // question into the composer (speech-to-text), and the 🔈 toggle reads the
+  // tutor's replies aloud (text-to-speech). Both use the browser's built-in
+  // engines, so they cost no voice-platform fees, and everything stays in the
+  // one chat thread — no separate voice history.
   const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-  let voiceState = "idle"; // idle | listening | thinking | speaking
-  let recog = null;
-
-  const VOICE_SYSTEM_HINT =
-    "VOICE CHAT MODE: the student is speaking to you by voice and will HEAR your reply read aloud. " +
-    "Reply in 2-4 short, plain, speakable sentences. No LaTeX, no SVG, no markdown, no bullet lists, no headings. " +
-    "Say maths naturally: 'x squared', 'two thirds', 'one half times base times height'. " +
-    "Then pause for the student — one idea, then check in.";
-
-  function setVoiceUI(state, statusText) {
-    voiceState = state;
-    const orb = document.getElementById("voice-orb");
-    const status = document.getElementById("voice-status");
-    if (!orb) return;
-    orb.className = "voice-orb" + (state === "idle" ? "" : " " + state);
-    orb.textContent = state === "listening" ? "🔴" : state === "thinking" ? "💭" : state === "speaking" ? "🔊" : "🎙️";
-    status.textContent = statusText;
-  }
+  let recog = null; // active dictation session, or null
 
   // Make a streamed reply speakable: drop diagrams, flatten LaTeX, expand symbols.
   function speakableText(t) {
     return latexToPlain(
-      t.replace(/```svg[\s\S]*?```/gi, " I've drawn a diagram — open the Text Chat tab to see it. ")
+      t.replace(/```svg[\s\S]*?```/gi, " I've drawn a diagram for you — take a look above. ")
        .replace(/\\\[([\s\S]*?)\\\]|\\\(([\s\S]*?)\\\)/g, function (_, a, b) { return " " + (a != null ? a : b) + " "; })
     )
       .replace(/\*\*/g, "")
@@ -739,6 +844,7 @@
   }
 
   function speakChunk(text, onend) {
+    if (!window.speechSynthesis) { if (onend) onend(); return; }
     const clean = speakableText(text);
     if (!clean) { if (onend) onend(); return; }
     const u = new SpeechSynthesisUtterance(clean);
@@ -749,129 +855,95 @@
     window.speechSynthesis.speak(u);
   }
 
-  function stopVoiceOutput() {
-    if (window.speechSynthesis) window.speechSynthesis.cancel();
-    if (recog) { try { recog.abort(); } catch (e) { /* ignore */ } recog = null; }
-    setVoiceUI("idle", "Tap the mic and ask your question");
-  }
+  function stopSpeaking() { if (window.speechSynthesis) window.speechSynthesis.cancel(); }
 
-  async function voiceAsk(profile, text) {
-    const transcriptEl = document.getElementById("voice-transcript");
-    const replyEl = document.getElementById("voice-reply");
-    transcriptEl.hidden = false;
-    transcriptEl.textContent = "“" + text + "”";
-    replyEl.hidden = false;
-    replyEl.textContent = "…";
-    setVoiceUI("thinking", "Thinking…");
-
-    const convoId = ensureActiveId();
-    const msgs = loadChat();
-    msgs.push({ role: "user", content: text });
-    saveChat(msgs, convoId);
-
-    let reply = "";
-    let spokenUpTo = 0; // speak sentence-by-sentence while streaming
-    let pendingUtterances = 0;
-    let streamDone = false;
-    function maybeFinish() {
-      if (streamDone && pendingUtterances === 0 && voiceState !== "idle") {
-        setVoiceUI("idle", "Tap the mic to reply");
-      }
-    }
-    function speakNewSentences(force) {
-      const boundary = force ? reply.length : (function () {
-        const m = reply.slice(spokenUpTo).search(/[.!?]\s[A-Z0-9]|[.!?]$|\n/);
-        return m === -1 ? -1 : spokenUpTo + m + 1;
-      })();
-      if (boundary > spokenUpTo) {
-        const chunk = reply.slice(spokenUpTo, boundary);
+  // Incremental speaker: fed the growing reply during streaming, it speaks each
+  // finished sentence as soon as it lands so read-aloud keeps pace with typing.
+  function makeSpeaker() {
+    let full = "", spokenUpTo = 0;
+    function speakReady() {
+      while (true) {
+        const rest = full.slice(spokenUpTo);
+        const m = rest.search(/[.!?](\s|$)|\n/);
+        if (m === -1) break;
+        const boundary = spokenUpTo + m + 1;
+        const chunk = full.slice(spokenUpTo, boundary).trim();
         spokenUpTo = boundary;
-        pendingUtterances += 1;
-        setVoiceUI("speaking", "Speaking — tap the mic to interrupt");
-        speakChunk(chunk, function () {
-          pendingUtterances -= 1;
-          maybeFinish();
-        });
+        if (chunk) speakChunk(chunk);
       }
     }
-
-    try {
-      const usage = await streamReply(
-        P.buildSystemPrompt(profile),
-        buildApiMessages(msgs, []),
-        function (delta) {
-          reply += delta;
-          replyEl.textContent = reply;
-          speakNewSentences(false);
-        },
-        { extraSystem: VOICE_SYSTEM_HINT }
-      );
-      finalizeMessage(replyEl, reply);
-      msgs.push({ role: "assistant", content: reply });
-      saveChat(msgs, convoId);
-      addTokenUsage((usage.inputTokens || 0) + (usage.outputTokens || 0));
-      renderUsagePill();
-      streamDone = true;
-      speakNewSentences(true); // speak any trailing partial sentence
-      maybeFinish();
-    } catch (err) {
-      msgs.pop();
-      saveChat(msgs, convoId);
-      streamDone = true;
-      setVoiceUI("idle", "⚠️ " + (err && err.message ? err.message : "Something went wrong — try again."));
-    }
+    return {
+      feed: function (text) { full = text; speakReady(); },
+      flush: function () {
+        const chunk = full.slice(spokenUpTo).trim();
+        spokenUpTo = full.length;
+        if (chunk) speakChunk(chunk);
+      },
+    };
   }
 
-  function voiceOrbTap(profile) {
-    if (!SpeechRec) {
-      setVoiceUI("idle", "Voice chat needs Chrome, Edge or Safari on this device.");
-      return;
+  // ---- read-aloud toggle (remembers the student's choice) ----
+  const READ_ALOUD_KEY = "logicsmith_read_aloud";
+  function readAloudOn() { return localStorage.getItem(READ_ALOUD_KEY) === "1"; }
+  function setReadAloud(on) {
+    localStorage.setItem(READ_ALOUD_KEY, on ? "1" : "0");
+    const btn = document.getElementById("tts-btn");
+    if (btn) {
+      btn.classList.toggle("active", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+      btn.textContent = on ? "🔊" : "🔈";
+      btn.title = on ? "Reading replies aloud — tap to mute" : "Read replies aloud";
     }
-    if (!chatConfigured) return;
-    if (chatLimitReached()) {
-      setVoiceUI("idle", "🌙 That's your tutoring time for today — come back tomorrow!");
-      return;
-    }
-    if (voiceState === "speaking" || voiceState === "thinking") {
-      stopVoiceOutput(); // interrupt, then fall through to listen
-    } else if (voiceState === "listening") {
-      if (recog) { try { recog.stop(); } catch (e) { /* ignore */ } }
-      return;
-    }
+    if (!on) stopSpeaking();
+  }
 
+  // ---- microphone dictation into the composer ----
+  function setMicUI(listening) {
+    const btn = document.getElementById("mic-btn");
+    if (!btn) return;
+    btn.classList.toggle("listening", !!listening);
+    btn.textContent = listening ? "⏹️" : "🎤";
+    btn.title = listening ? "Stop listening" : "Speak your question";
+  }
+
+  function stopDictation() {
+    if (recog) { try { recog.abort(); } catch (e) { /* ignore */ } recog = null; }
+    setMicUI(false);
+  }
+
+  // Called when leaving the chat or editing the profile: silence both engines.
+  function stopVoiceOutput() { stopSpeaking(); stopDictation(); }
+
+  function startDictation() {
+    const input = document.getElementById("chat-input");
+    if (!SpeechRec) { toast("Voice input needs Chrome, Edge or Safari on this device."); return; }
+    if (!chatConfigured || chatLimitReached()) return;
+    if (recog) { try { recog.stop(); } catch (e) { /* ignore */ } return; } // tap again = stop
+    stopSpeaking(); // don't read aloud over the student while they speak
+
+    // Append dictation after whatever's already typed, rather than replacing it.
+    const base = input.value ? input.value.replace(/\s*$/, "") + " " : "";
+    let finalText = "";
     recog = new SpeechRec();
     recog.lang = "en-SG";
     recog.interimResults = true;
     recog.maxAlternatives = 1;
-    let finalText = "";
-    const transcriptEl = document.getElementById("voice-transcript");
-
     recog.onresult = function (ev) {
       let interim = "";
       for (let i = ev.resultIndex; i < ev.results.length; i++) {
         if (ev.results[i].isFinal) finalText += ev.results[i][0].transcript;
         else interim += ev.results[i][0].transcript;
       }
-      transcriptEl.hidden = false;
-      transcriptEl.textContent = "“" + (finalText || interim) + "”";
+      input.value = base + finalText + interim;
     };
     recog.onerror = function (ev) {
-      recog = null;
-      setVoiceUI("idle", ev.error === "not-allowed"
-        ? "Please allow microphone access to use voice chat."
-        : "Didn't catch that — tap the mic and try again.");
+      recog = null; setMicUI(false);
+      if (ev.error === "not-allowed") toast("Allow microphone access to speak your question.");
+      else if (ev.error !== "aborted" && ev.error !== "no-speech") toast("Didn't catch that — try again.");
     };
-    recog.onend = function () {
-      recog = null;
-      if (finalText.trim()) voiceAsk(profile, finalText.trim());
-      else if (voiceState === "listening") setVoiceUI("idle", "Didn't catch that — tap the mic and try again.");
-    };
-
-    setVoiceUI("listening", "Listening… speak your question, then pause");
-    try { recog.start(); } catch (e) {
-      recog = null;
-      setVoiceUI("idle", "Couldn't start the microphone — try again.");
-    }
+    recog.onend = function () { recog = null; setMicUI(false); input.focus(); };
+    setMicUI(true);
+    try { recog.start(); } catch (e) { recog = null; setMicUI(false); }
   }
 
   // ---------- voice widget ----------
@@ -979,10 +1051,9 @@
     }, POLL_SECONDS * 1000);
   }
 
-  // ---------- tabs (Text Chat / Voice Chat / Call) ----------
+  // ---------- tabs (Text Chat / Call) ----------
   const TABS = [
     { name: "chat", tabId: "tab-chat", panelId: "chat-panel" },
-    { name: "voice", tabId: "tab-voice", panelId: "voice-chat-panel" },
     { name: "call", tabId: "tab-call", panelId: "call-panel" },
   ];
 
@@ -993,7 +1064,7 @@
     });
     // leaving a mode: stop whatever it was doing
     if (tab !== "call") unmountWidget();
-    if (tab !== "voice") stopVoiceOutput();
+    if (tab !== "chat") stopVoiceOutput(); // silence mic/read-aloud outside chat
     if (tab === "call") {
       mountWidget(profile);
       renderVoiceUsage();
@@ -1075,9 +1146,18 @@
       show("chat-view");
 
       document.getElementById("tab-chat").onclick = function () { switchTab("chat", profile); };
-      document.getElementById("tab-voice").onclick = function () { switchTab("voice", profile); };
       document.getElementById("tab-call").onclick = function () { switchTab("call", profile); };
-      document.getElementById("voice-orb").onclick = function () { voiceOrbTap(profile); };
+
+      // ---- in-chat voice: mic dictation + read-aloud toggle ----
+      const micBtn = document.getElementById("mic-btn");
+      const ttsBtn = document.getElementById("tts-btn");
+      if (!SpeechRec) { micBtn.hidden = true; } // no dictation on this browser
+      else { micBtn.onclick = function () { startDictation(); }; }
+      if (!window.speechSynthesis) { ttsBtn.hidden = true; } // no read-aloud here
+      else {
+        setReadAloud(readAloudOn()); // restore saved preference + button state
+        ttsBtn.onclick = function () { setReadAloud(!readAloudOn()); };
+      }
 
       // ---- sidebar: new chat, mobile drawer ----
       document.getElementById("sidebar-new").onclick = function () {

@@ -5,8 +5,9 @@ built to teach **the way you teach**: connect new concepts to old ones, narrow d
 before explaining, check confidence out of 10, no fluff.
 
 Students set up a one-time profile (name, level, MOE subjects, learning style based
-on the 8 multiple intelligences), then **chat with the tutor by text** (powered by
-**Claude**) or **call it by voice** (powered by **ElevenLabs**).
+on the 8 multiple intelligences), then **chat with the tutor by text or voice**
+(powered by **Claude** — type, or tap 🎤 to speak and 🔈 to hear replies read back)
+or **call it by voice** (powered by **ElevenLabs**).
 
 Live site: `https://logicsmith13.github.io/LogiCSmith/`
 
@@ -17,7 +18,7 @@ Live site: `https://logicsmith13.github.io/LogiCSmith/`
 | Feature | AI brain | Billed from |
 | --- | --- | --- |
 | 💬 **Text Chat** (main) | **Claude API** (Anthropic) | Your **Anthropic API** credits |
-| 🎙️ **Voice Chat** (browser speech) | **Claude API** — same brain and prompt as text chat; the browser does the listening/speaking for free | Your **Anthropic API** credits (same daily token budget) |
+| 🎤 **Speak / 🔈 Read-aloud** (inside Text Chat) | **Claude API** — same thread and prompt as typing; the browser does the listening/speaking for free | Your **Anthropic API** credits (same daily token budget) |
 | 📞 **Call** (ElevenLabs test tab) | **ElevenLabs Agents** (voice + its own LLM) | Your **ElevenLabs** call minutes (Free plan ≈ 15 min/month, shared) |
 
 Students also get a **Claude-style sidebar of past chats**. Chats are stored in

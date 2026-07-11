@@ -99,31 +99,22 @@
 
           <div class="mode-tabs">
             <button type="button" class="mode-tab active" id="tab-chat">💬 Text Chat</button>
-            <button type="button" class="mode-tab" id="tab-voice">🎙️ Voice Chat</button>
             <button type="button" class="mode-tab" id="tab-call">📞 Call</button>
           </div>
 
-          <!-- Text chat panel -->
+          <!-- Text chat panel (type OR speak — free browser mic + read-aloud) -->
           <div class="panel tutor-panel" id="chat-panel">
             <div class="chat-messages" id="chat-messages"></div>
             <form class="composer" id="composer">
               <div class="attach-previews" id="attach-previews" hidden></div>
               <button type="button" class="btn-attach" id="attach-btn" title="Attach a photo" aria-label="Attach a photo">📎</button>
               <input type="file" id="attach-input" accept="image/png,image/jpeg,image/webp" multiple hidden />
-              <textarea id="chat-input" rows="1" placeholder="Type your question — or attach a photo 📎" maxlength="2000"></textarea>
+              <button type="button" class="btn-mic" id="mic-btn" title="Speak your question" aria-label="Speak your question">🎤</button>
+              <textarea id="chat-input" rows="1" placeholder="Type your question, or tap 🎤 to speak — attach a photo 📎 too" maxlength="2000"></textarea>
+              <button type="button" class="btn-tts" id="tts-btn" title="Read replies aloud" aria-label="Read replies aloud" aria-pressed="false">🔈</button>
               <button type="submit" class="btn-primary btn-send" id="send-btn" aria-label="Send">➤</button>
             </form>
             <p class="chat-note" id="chat-note" hidden></p>
-          </div>
-
-          <!-- Voice chat panel (free, browser speech — same tutor brain as text) -->
-          <div class="panel tutor-panel" id="voice-chat-panel" hidden>
-            <div class="voice-chat">
-              <button type="button" class="voice-orb" id="voice-orb" aria-label="Talk to your tutor">🎙️</button>
-              <p class="voice-status" id="voice-status">Tap the mic and ask your question</p>
-              <p class="voice-transcript" id="voice-transcript" hidden></p>
-              <div class="voice-reply" id="voice-reply" hidden></div>
-            </div>
           </div>
 
           <!-- Call panel (ElevenLabs agent — limited test minutes) -->
