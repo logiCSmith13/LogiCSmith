@@ -689,7 +689,8 @@ textarea { resize: vertical; }
 
 /* Tutor diagrams (SVG the tutor draws) + rendered formulas (KaTeX) */
 .diagram {
-  margin: 10px 0;
+  margin: 10px auto;
+  max-width: 520px;
   text-align: center;
 }
 .diagram svg {
