@@ -32,13 +32,7 @@ html[data-theme="dark"] body {
     radial-gradient(600px 340px at 5% 100%, rgba(139, 124, 246, 0.16), transparent),
     var(--bg);
 }
-html[data-theme="dark"] .topbar { background: linear-gradient(180deg, #10294c, #0b1c3f); }
-/* Soft blue glow behind the logo so an uploaded logo.png's square background
-   melts into the bar instead of showing a hard edge. Anchored where the logo
-   sits (≈40px from the inner-left). */
-html[data-theme="dark"] .topbar-inner {
-  background: radial-gradient(150px 110px at 40px 50%, rgba(42, 104, 186, 0.55), transparent 72%);
-}
+html[data-theme="dark"] .topbar { background: #071528; } /* slightly darker than the page */
 html[data-theme="dark"] .brand-name { color: #eaf0ff; } /* navy default is invisible on dark */
 /* Tutor-drawn SVG diagrams are usually dark strokes on transparent — keep a
    light card behind them so they stay readable on the dark theme. */
