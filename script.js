@@ -559,10 +559,210 @@
   }
 
   // finalizeMessage: full render for a COMPLETED assistant message —
+  // ---------- accurate function plotter (```plot blocks) ----------
+  // Claude can't freehand an accurate curve, so instead of a hand-drawn SVG the
+  // tutor emits a ```plot block naming the function(s) and domain, and WE draw
+  // the true graph from the real maths — correct axes, ticks and asymptote
+  // breaks. Expressions run through a tiny safe parser (no eval / Function).
+  const PLOT_FUNCS = {
+    sin: Math.sin, cos: Math.cos, tan: Math.tan,
+    asin: Math.asin, acos: Math.acos, atan: Math.atan,
+    sinh: Math.sinh, cosh: Math.cosh, tanh: Math.tanh,
+    sqrt: Math.sqrt, cbrt: Math.cbrt, abs: Math.abs, exp: Math.exp, ln: Math.log,
+    log: function (v) { return Math.log(v) / Math.LN10; },
+    log10: function (v) { return Math.log(v) / Math.LN10; },
+  };
+  const PLOT_CONSTS = { pi: Math.PI, e: Math.E };
+
+  function compileExpr(src) {
+    const s = String(src).replace(/\s+/g, "");
+    const toks = [];
+    let i = 0;
+    const isD = function (c) { return c >= "0" && c <= "9"; };
+    const isA = function (c) { return (c >= "a" && c <= "z") || (c >= "A" && c <= "Z"); };
+    while (i < s.length) {
+      const c = s[i];
+      if (isD(c) || (c === "." && isD(s[i + 1]))) {
+        let j = i + 1; while (j < s.length && (isD(s[j]) || s[j] === ".")) j++;
+        toks.push({ t: "num", v: parseFloat(s.slice(i, j)) }); i = j;
+      } else if (isA(c)) {
+        let j = i + 1; while (j < s.length && (isA(s[j]) || isD(s[j]))) j++;
+        const name = s.slice(i, j).toLowerCase(); i = j;
+        if (PLOT_FUNCS[name]) toks.push({ t: "func", v: name });
+        else if (name === "x") toks.push({ t: "var" });
+        else if (PLOT_CONSTS[name] != null) toks.push({ t: "num", v: PLOT_CONSTS[name] });
+        else throw new Error("unknown " + name);
+      } else if ("+-*/^(),".indexOf(c) !== -1) {
+        toks.push({ t: "op", v: c }); i++;
+      } else throw new Error("bad char " + c);
+    }
+    const ex = []; // insert implicit multiplication (2x, 2(x), )(, x( ...)
+    for (let k = 0; k < toks.length; k++) {
+      ex.push(toks[k]);
+      const a = toks[k], b = toks[k + 1];
+      if (!b) continue;
+      const aEnd = a.t === "num" || a.t === "var" || (a.t === "op" && a.v === ")");
+      const bStart = b.t === "num" || b.t === "var" || b.t === "func" || (b.t === "op" && b.v === "(");
+      if (aEnd && bStart) ex.push({ t: "op", v: "*" });
+    }
+    const prec = { "u-": 3.5, "^": 4, "*": 3, "/": 3, "+": 2, "-": 2 };
+    const right = { "^": true, "u-": true };
+    const outq = [], st = [];
+    let prev = null;
+    for (const tk of ex) {
+      if (tk.t === "num" || tk.t === "var") outq.push(tk);
+      else if (tk.t === "func") st.push(tk);
+      else if (tk.v === "(") st.push(tk);
+      else if (tk.v === ")") {
+        while (st.length && st[st.length - 1].v !== "(") outq.push(st.pop());
+        if (!st.length) throw new Error("paren");
+        st.pop();
+        if (st.length && st[st.length - 1].t === "func") outq.push(st.pop());
+      } else if (tk.v === ",") {
+        while (st.length && st[st.length - 1].v !== "(") outq.push(st.pop());
+      } else {
+        const unary = (tk.v === "-" || tk.v === "+") && (prev === null || (prev.t === "op" && prev.v !== ")"));
+        if (unary) { if (tk.v === "-") st.push({ t: "op", v: "u-" }); }
+        else {
+          while (st.length) {
+            const top = st[st.length - 1];
+            if (top.t === "func") { outq.push(st.pop()); }
+            else if (top.t === "op" && top.v !== "(" && (prec[top.v] > prec[tk.v] || (prec[top.v] === prec[tk.v] && !right[tk.v]))) outq.push(st.pop());
+            else break;
+          }
+          st.push(tk);
+        }
+      }
+      prev = tk;
+    }
+    while (st.length) { const t = st.pop(); if (t.v === "(" || t.v === ")") throw new Error("paren"); outq.push(t); }
+    if (!outq.length) throw new Error("empty");
+    return function (x) {
+      const v = [];
+      for (const tk of outq) {
+        if (tk.t === "num") v.push(tk.v);
+        else if (tk.t === "var") v.push(x);
+        else if (tk.t === "func") v.push(PLOT_FUNCS[tk.v](v.pop()));
+        else if (tk.v === "u-") v.push(-v.pop());
+        else { const b = v.pop(), a = v.pop(); v.push(tk.v === "+" ? a + b : tk.v === "-" ? a - b : tk.v === "*" ? a * b : tk.v === "/" ? a / b : Math.pow(a, b)); }
+      }
+      return v[v.length - 1];
+    };
+  }
+
+  function parsePlot(spec) {
+    const fns = [], colors = ["#c0392b", "#2f6fd6", "#1f9d55"];
+    let xmin = null, xmax = null, ymin = null, ymax = null;
+    const pair = function (str) {
+      const m = str.match(/(-?\d+(?:\.\d+)?)\s*(?:,|to|;|\.\.|\s)\s*(-?\d+(?:\.\d+)?)/i);
+      return m ? [parseFloat(m[1]), parseFloat(m[2])] : null;
+    };
+    String(spec).split(/\n/).forEach(function (raw) {
+      const line = raw.trim();
+      if (!line) return;
+      const eq = line.indexOf("=");
+      const head = (eq < 0 ? line : line.slice(0, eq)).trim().toLowerCase();
+      if (eq >= 0 && /^(y|f\(x\)|f)$/.test(head)) {
+        try { fns.push({ f: compileExpr(line.slice(eq + 1)), color: colors[fns.length % colors.length] }); } catch (e) { /* skip */ }
+        return;
+      }
+      const low = line.toLowerCase();
+      if (/^(domain|x)\b/.test(low)) { const p = pair(line); if (p) { xmin = p[0]; xmax = p[1]; } return; }
+      if (/^(range|y)\b/.test(low)) { const p = pair(line); if (p) { ymin = p[0]; ymax = p[1]; } return; }
+      if (/x/i.test(line)) { try { fns.push({ f: compileExpr(line), color: colors[fns.length % colors.length] }); } catch (e) { /* skip */ } }
+    });
+    if (xmin == null || xmax == null || !(xmax > xmin)) { xmin = -5; xmax = 5; }
+    return { fns: fns, xmin: xmin, xmax: xmax, ymin: ymin, ymax: ymax };
+  }
+
+  function plotFmt(n) { n = Math.round(n * 1000) / 1000; if (Object.is(n, -0)) n = 0; return String(n); }
+  function niceStep(span, target) {
+    const raw = span / Math.max(1, target);
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const f = raw / mag;
+    return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * mag;
+  }
+
+  function buildPlotSVG(spec) {
+    let parsed;
+    try { parsed = parsePlot(spec); } catch (e) { return ""; }
+    if (!parsed || !parsed.fns.length) return "";
+    const xmin = parsed.xmin, xmax = parsed.xmax;
+    const W = 380, H = 260, mL = 30, mR = 16, mT = 12, mB = 20;
+    const iw = W - mL - mR, ih = H - mT - mB, N = 320;
+    const series = parsed.fns.map(function (fn) {
+      const pts = [];
+      for (let i = 0; i <= N; i++) {
+        const x = xmin + (xmax - xmin) * i / N;
+        let y; try { y = fn.f(x); } catch (e) { y = NaN; }
+        pts.push([x, y]);
+      }
+      return { pts: pts, color: fn.color };
+    });
+    let ymin = parsed.ymin, ymax = parsed.ymax;
+    if (ymin == null || ymax == null) {
+      const all = [];
+      series.forEach(function (s) { s.pts.forEach(function (p) { if (isFinite(p[1])) all.push(p[1]); }); });
+      let lo, hi;
+      if (!all.length) { lo = -1; hi = 1; }
+      else {
+        all.sort(function (a, b) { return a - b; });
+        const q = function (f) { return all[Math.min(all.length - 1, Math.max(0, Math.round(f * (all.length - 1))))]; };
+        lo = all[0]; hi = all[all.length - 1];
+        // Asymptotes (tan, 1/x) make the raw range explode; if the data has a
+        // very long tail vs its interquartile spread, clip to Tukey fences so
+        // the interesting part of the curve fills the view.
+        const q25 = q(0.25), q75 = q(0.75), iqr = Math.max(1e-9, q75 - q25);
+        if ((hi - lo) > 6 * iqr) { lo = q25 - 1.5 * iqr; hi = q75 + 1.5 * iqr; }
+      }
+      if (Math.abs(hi - lo) < 1e-6) { lo -= 1; hi += 1; }
+      const pad = (hi - lo) * 0.08; ymin = lo - pad; ymax = hi + pad;
+    }
+    const sx = function (x) { return mL + (x - xmin) / (xmax - xmin) * iw; };
+    const sy = function (y) { return mT + (ymax - y) / (ymax - ymin) * ih; };
+    const axisX = (xmin <= 0 && xmax >= 0) ? sx(0) : (xmin > 0 ? mL : mL + iw);
+    const axisY = (ymin <= 0 && ymax >= 0) ? sy(0) : (ymin > 0 ? mT + ih : mT);
+    const yLabelRight = axisX < mL + 16;
+    const xs = niceStep(xmax - xmin, 8), ys = niceStep(ymax - ymin, 6);
+    let g = "";
+    for (let t = Math.ceil(xmin / xs) * xs; t <= xmax + 1e-9; t += xs) {
+      const px = sx(t);
+      g += '<line x1="' + px.toFixed(1) + '" y1="' + mT + '" x2="' + px.toFixed(1) + '" y2="' + (mT + ih) + '" stroke="#e7edf5" stroke-width="1"/>';
+      if (Math.abs(t) > 1e-9) g += '<text x="' + px.toFixed(1) + '" y="' + (axisY + 13).toFixed(1) + '" font-size="10" fill="#4a5568" text-anchor="middle" font-family="sans-serif">' + plotFmt(t) + '</text>';
+    }
+    for (let t = Math.ceil(ymin / ys) * ys; t <= ymax + 1e-9; t += ys) {
+      const py = sy(t);
+      g += '<line x1="' + mL + '" y1="' + py.toFixed(1) + '" x2="' + (mL + iw) + '" y2="' + py.toFixed(1) + '" stroke="#e7edf5" stroke-width="1"/>';
+      if (Math.abs(t) > 1e-9) g += '<text x="' + (yLabelRight ? axisX + 4 : axisX - 4).toFixed(1) + '" y="' + (py + 3).toFixed(1) + '" font-size="10" fill="#4a5568" text-anchor="' + (yLabelRight ? "start" : "end") + '" font-family="sans-serif">' + plotFmt(t) + '</text>';
+    }
+    g += '<line x1="' + mL + '" y1="' + axisY.toFixed(1) + '" x2="' + (mL + iw) + '" y2="' + axisY.toFixed(1) + '" stroke="#33415a" stroke-width="1.5"/>';
+    g += '<line x1="' + axisX.toFixed(1) + '" y1="' + mT + '" x2="' + axisX.toFixed(1) + '" y2="' + (mT + ih) + '" stroke="#33415a" stroke-width="1.5"/>';
+    const outLo = ymin - (ymax - ymin) * 1.5, outHi = ymax + (ymax - ymin) * 1.5;
+    series.forEach(function (s) {
+      let d = "", pen = false;
+      s.pts.forEach(function (p) {
+        const y = p[1];
+        if (!isFinite(y) || y < outLo || y > outHi) { pen = false; return; }
+        d += (pen ? "L" : "M") + sx(p[0]).toFixed(1) + " " + sy(y).toFixed(1); pen = true;
+      });
+      if (d) g += '<path d="' + d + '" fill="none" stroke="' + s.color + '" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>';
+    });
+    g += '<text x="' + (axisX - 4).toFixed(1) + '" y="' + (axisY + 13).toFixed(1) + '" font-size="10" fill="#4a5568" text-anchor="end" font-family="sans-serif">0</text>';
+    g += '<text x="' + (mL + iw + 3) + '" y="' + (axisY - 4).toFixed(1) + '" font-size="12" fill="#33415a" font-style="italic" font-family="sans-serif">x</text>';
+    g += '<text x="' + (axisX + 5).toFixed(1) + '" y="' + (mT + 1) + '" font-size="12" fill="#33415a" font-style="italic" font-family="sans-serif">y</text>';
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg" width="100%" height="auto">' + g + "</svg>";
+  }
+
   // diagrams + formulas. Used after streaming ends and when replaying history.
   function finalizeMessage(el, text) {
     const svgs = [];
-    let work = text.replace(/```svg\s*([\s\S]*?)```/gi, function (_, code) {
+    let work = text.replace(/```plot\s*([\s\S]*?)```/gi, function (_, spec) {
+      const svg = buildPlotSVG(spec); // accurate, app-computed graph
+      if (!svg) return "";
+      svgs.push(svg);
+      return "SVG" + (svgs.length - 1) + "";
+    });
+    work = work.replace(/```svg\s*([\s\S]*?)```/gi, function (_, code) {
       const clean = sanitizeSVG(code.trim());
       if (!clean) return ""; // drop anything unsafe or unparseable
       svgs.push(clean);
