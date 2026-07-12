@@ -15,15 +15,8 @@
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
   <link rel="stylesheet" href="styles.css" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔨</text></svg>" />
-  <!-- Apply the saved theme before first paint (defaults to dark to match the
-       logo) so there's no flash of the light background on load. -->
-  <script>
-    (function () {
-      var t;
-      try { t = localStorage.getItem("logicsmith_theme"); } catch (e) { /* ignore */ }
-      document.documentElement.setAttribute("data-theme", t === "light" ? "light" : "dark");
-    })();
-  </script>
+  <!-- LogiCSmith uses a single deep-navy theme (matches the logo). -->
+  <script>document.documentElement.setAttribute("data-theme", "dark");</script>
 </head>
 <body>
 
@@ -31,14 +24,32 @@
     <div class="topbar-inner">
       <span class="brand">
         <button id="sidebar-toggle" class="sidebar-toggle" aria-label="Your chats" hidden>☰</button>
-        <img id="brand-logo" src="assets/logo.png" alt="LogiCSmith logo"
-             onerror="this.hidden=true;document.getElementById('brand-mark').hidden=false;" />
-        <span class="brand-mark" id="brand-mark" hidden>⚒️</span>
-        <span class="brand-name">Logi<span class="brand-accent">CS</span>mith</span>
+        <svg class="brand-emblem" viewBox="0 0 64 64" aria-label="LogiCSmith logo" role="img">
+          <defs>
+            <linearGradient id="ls-shield" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#2f6fd6"/><stop offset="1" stop-color="#0f2f73"/>
+            </linearGradient>
+            <linearGradient id="ls-steel" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#eef4ff"/><stop offset="1" stop-color="#8fa8cd"/>
+            </linearGradient>
+            <linearGradient id="ls-dolphin" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#d3ecff"/><stop offset="0.5" stop-color="#4aa3ec"/><stop offset="1" stop-color="#1c62b8"/>
+            </linearGradient>
+          </defs>
+          <path d="M12 13 C12 10 14 9 17 9 L47 9 C50 9 52 10 52 13 V31 C52 45 43 54 32 59 C21 54 12 45 12 31 Z"
+                fill="url(#ls-shield)" stroke="#9fd0ff" stroke-width="1.5" stroke-opacity="0.5"/>
+          <path d="M18 35 L41 35 L41 33 L52 33 L46 38 L41 38 L41 40 L29 40 L32 45 L37 45 L37 48 L22 48 L22 45 L27 45 L24 40 L18 40 Z"
+                fill="url(#ls-steel)" stroke="#22396b" stroke-width="0.8" stroke-linejoin="round"/>
+          <path d="M15 43 C9 27 21 12 40 11 C47 10.6 52 12.5 55 16 L51 19 C46 15.5 39 15.5 33 19.5 C26 24.5 22.5 33 24 42 C22 45 17 46 15 43 Z"
+                fill="url(#ls-dolphin)" stroke="#0b2b5c" stroke-width="0.8" stroke-linejoin="round"/>
+          <path d="M30 12.2 L35 5.5 L38.5 13 Z" fill="url(#ls-dolphin)" stroke="#0b2b5c" stroke-width="0.8" stroke-linejoin="round"/>
+          <path d="M15 43 L9 39 L12 45 L8 47 L16 47 Z" fill="url(#ls-dolphin)" stroke="#0b2b5c" stroke-width="0.8" stroke-linejoin="round"/>
+          <circle cx="46.5" cy="16.5" r="1.25" fill="#0b2b5c"/>
+        </svg>
+        <span class="brand-name">Logi<span class="brand-cs">CS</span><span class="brand-mith">mith</span></span>
       </span>
       <div class="topbar-right">
         <span class="usage-pill" id="usage-pill" hidden></span>
-        <button class="btn-icon" id="theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode">☀️</button>
         <button class="btn-ghost-small" id="edit-profile-btn" hidden>Profile</button>
       </div>
     </div>
@@ -117,12 +128,16 @@
             <div class="chat-messages" id="chat-messages"></div>
             <form class="composer" id="composer">
               <div class="attach-previews" id="attach-previews" hidden></div>
-              <button type="button" class="btn-attach" id="attach-btn" title="Attach a photo" aria-label="Attach a photo">📎</button>
-              <input type="file" id="attach-input" accept="image/png,image/jpeg,image/webp" multiple hidden />
-              <button type="button" class="btn-mic" id="mic-btn" title="Speak your question" aria-label="Speak your question">🎤</button>
-              <textarea id="chat-input" rows="1" placeholder="Type your question, or tap 🎤 to speak — attach a photo 📎 too" maxlength="2000"></textarea>
-              <button type="button" class="btn-tts" id="tts-btn" title="Read replies aloud" aria-label="Read replies aloud" aria-pressed="false">🔈</button>
-              <button type="submit" class="btn-primary btn-send" id="send-btn" aria-label="Send">➤</button>
+              <div class="composer-tools">
+                <button type="button" class="btn-attach" id="attach-btn" title="Attach a photo" aria-label="Attach a photo">📎</button>
+                <input type="file" id="attach-input" accept="image/png,image/jpeg,image/webp" multiple hidden />
+                <button type="button" class="btn-mic" id="mic-btn" title="Speak your question" aria-label="Speak your question">🎤</button>
+                <button type="button" class="btn-tts" id="tts-btn" title="Read replies aloud" aria-label="Read replies aloud" aria-pressed="false">🔈</button>
+              </div>
+              <div class="composer-input-row">
+                <textarea id="chat-input" rows="3" placeholder="Type your question, or tap 🎤 to speak — attach a photo 📎 too" maxlength="2000"></textarea>
+                <button type="submit" class="btn-primary btn-send" id="send-btn" aria-label="Send">➤</button>
+              </div>
             </form>
             <p class="chat-note" id="chat-note" hidden></p>
           </div>

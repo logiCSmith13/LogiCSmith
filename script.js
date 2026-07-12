@@ -731,21 +731,6 @@
     pill.classList.toggle("low", leftPct <= 20);
   }
 
-  // ---------- dark / light theme ----------
-  const THEME_KEY = "logicsmith_theme";
-  function applyTheme(theme) {
-    const t = theme === "light" ? "light" : "dark";
-    document.documentElement.setAttribute("data-theme", t);
-    try { localStorage.setItem(THEME_KEY, t); } catch (e) { /* ignore */ }
-    const btn = document.getElementById("theme-toggle");
-    if (btn) {
-      btn.textContent = t === "dark" ? "☀️" : "🌙"; // shows what tapping switches TO
-      btn.title = t === "dark" ? "Switch to light mode" : "Switch to dark mode";
-    }
-  }
-  function currentTheme() {
-    return document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
-  }
 
   // Build the messages array sent to Claude. Photos are attached to the CURRENT
   // turn only (via `images`, full base64) — older turns are sent as text so a
@@ -1125,12 +1110,6 @@
     renderLevelOptions();
     renderStyleOptions();
     renderSubjects("", []);
-
-    // Theme toggle (the saved theme was already applied in <head> before paint)
-    applyTheme(currentTheme());
-    document.getElementById("theme-toggle").addEventListener("click", function () {
-      applyTheme(currentTheme() === "dark" ? "light" : "dark");
-    });
 
     document.getElementById("f-level").addEventListener("change", function (e) {
       renderSubjects(P.stageOf(e.target.value), []);
