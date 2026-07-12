@@ -32,7 +32,13 @@ html[data-theme="dark"] body {
     radial-gradient(600px 340px at 5% 100%, rgba(139, 124, 246, 0.16), transparent),
     var(--bg);
 }
-html[data-theme="dark"] .topbar { background: rgba(11, 28, 63, 0.85); }
+html[data-theme="dark"] .topbar { background: linear-gradient(180deg, #10294c, #0b1c3f); }
+/* Soft blue glow behind the logo so an uploaded logo.png's square background
+   melts into the bar instead of showing a hard edge. Anchored where the logo
+   sits (≈40px from the inner-left). */
+html[data-theme="dark"] .topbar-inner {
+  background: radial-gradient(150px 110px at 40px 50%, rgba(42, 104, 186, 0.55), transparent 72%);
+}
 html[data-theme="dark"] .brand-name { color: #eaf0ff; } /* navy default is invisible on dark */
 /* Tutor-drawn SVG diagrams are usually dark strokes on transparent — keep a
    light card behind them so they stay readable on the dark theme. */
@@ -79,8 +85,14 @@ h1, .brand-name { font-family: "Sora", system-ui, sans-serif; }
   justify-content: space-between;
 }
 .brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
-.brand-emblem { width: 40px; height: 40px; display: block; flex-shrink: 0; object-fit: contain; border-radius: 8px; }
+.brand-emblem { width: 40px; height: 40px; display: block; flex-shrink: 0; object-fit: contain; }
 .brand-emblem[hidden] { display: none; }
+/* Feather the uploaded logo's edges to transparent so its rectangular
+   background blends into the top bar (the drawn SVG needs no feathering). */
+#brand-logo {
+  -webkit-mask-image: radial-gradient(closest-side, #000 66%, rgba(0,0,0,0.35) 86%, transparent 100%);
+          mask-image: radial-gradient(closest-side, #000 66%, rgba(0,0,0,0.35) 86%, transparent 100%);
+}
 .brand-name {
   font-weight: 800; font-size: 1.2rem; letter-spacing: -0.01em;
   font-style: italic; color: #fff; white-space: nowrap;
