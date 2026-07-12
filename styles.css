@@ -70,7 +70,7 @@ h1, .brand-name { font-family: "Sora", system-ui, sans-serif; }
   border-bottom: 1px solid var(--border);
 }
 .topbar-inner {
-  max-width: 920px;
+  max-width: 1200px; /* match .app so the logo/controls flush to the content margins */
   margin: 0 auto;
   padding: 0 20px;
   height: 60px;
@@ -116,9 +116,10 @@ h1, .brand-name { font-family: "Sora", system-ui, sans-serif; }
 }
 .usage-pill.low { color: #e06c6c; background: rgba(224, 108, 108, 0.15); }
 
-@media (max-width: 560px) {
+@media (max-width: 640px) {
   .topbar-inner { padding: 0 12px; }
-  .brand-name { font-size: 1.02rem; }
+  .brand-emblem { display: none; } /* keep just the words on phones — less clutter */
+  .brand-name { font-size: 1.05rem; }
   .btn-ghost-small { padding: 7px 11px; }
 }
 
