@@ -79,7 +79,8 @@ h1, .brand-name { font-family: "Sora", system-ui, sans-serif; }
   justify-content: space-between;
 }
 .brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
-.brand-emblem { width: 40px; height: 40px; display: block; flex-shrink: 0; }
+.brand-emblem { width: 40px; height: 40px; display: block; flex-shrink: 0; object-fit: contain; border-radius: 8px; }
+.brand-emblem[hidden] { display: none; }
 .brand-name {
   font-weight: 800; font-size: 1.2rem; letter-spacing: -0.01em;
   font-style: italic; color: #fff; white-space: nowrap;

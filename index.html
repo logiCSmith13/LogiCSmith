@@ -24,7 +24,11 @@
     <div class="topbar-inner">
       <span class="brand">
         <button id="sidebar-toggle" class="sidebar-toggle" aria-label="Your chats" hidden>☰</button>
-        <svg class="brand-emblem" viewBox="0 0 64 64" aria-label="LogiCSmith logo" role="img">
+        <!-- If you upload assets/logo.png it is used automatically; otherwise the
+             drawn dolphin below is shown. -->
+        <img id="brand-logo" class="brand-emblem" src="assets/logo.png" alt="LogiCSmith logo"
+             onerror="this.remove();var s=document.getElementById('brand-emblem-svg');if(s)s.removeAttribute('hidden');" />
+        <svg id="brand-emblem-svg" class="brand-emblem" hidden viewBox="0 0 64 64" aria-label="LogiCSmith logo" role="img">
           <defs>
             <linearGradient id="ls-shield" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0" stop-color="#2f6fd6"/><stop offset="1" stop-color="#0f2f73"/>
