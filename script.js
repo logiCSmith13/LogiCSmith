@@ -652,10 +652,18 @@
 
   function parsePlot(spec) {
     const fns = [], colors = ["#c0392b", "#2f6fd6", "#1f9d55"];
-    let xmin = null, xmax = null, ymin = null, ymax = null;
-    const pair = function (str) {
-      const m = str.match(/(-?\d+(?:\.\d+)?)\s*(?:,|to|;|\.\.|\s)\s*(-?\d+(?:\.\d+)?)/i);
-      return m ? [parseFloat(m[1]), parseFloat(m[2])] : null;
+    const asym = [];
+    let xmin = null, xmax = null, ymin = null, ymax = null, piX = false;
+    // Bounds may be expressions like "-pi/2" — evaluate them with the same
+    // safe parser used for the curves.
+    const evalNum = function (str) {
+      try { const v = compileExpr(str)(0); return isFinite(v) ? v : null; } catch (e) { return null; }
+    };
+    const pair = function (rest) {
+      const parts = rest.split(/,|;|\bto\b|\.\./i).map(function (s) { return s.trim(); }).filter(Boolean);
+      if (parts.length < 2) return null;
+      const a = evalNum(parts[0]), b = evalNum(parts[1]);
+      return a != null && b != null ? [a, b] : null;
     };
     String(spec).split(/\n/).forEach(function (raw) {
       const line = raw.trim();
@@ -666,22 +674,48 @@
         try { fns.push({ f: compileExpr(line.slice(eq + 1)), color: colors[fns.length % colors.length] }); } catch (e) { /* skip */ }
         return;
       }
-      const low = line.toLowerCase();
-      if (/^(domain|x)\b/.test(low)) { const p = pair(line); if (p) { xmin = p[0]; xmax = p[1]; } return; }
-      if (/^(range|y)\b/.test(low)) { const p = pair(line); if (p) { ymin = p[0]; ymax = p[1]; } return; }
+      const km = line.match(/^(domain|range|asymptotes?|x|y)\s*[:=]\s*(.+)$/i);
+      if (km) {
+        const key = km[1].toLowerCase(), rest = km[2];
+        if (key === "domain" || key === "x") {
+          const p = pair(rest);
+          if (p) { xmin = p[0]; xmax = p[1]; piX = piX || /\bpi\b/i.test(rest); }
+          return;
+        }
+        if (key === "range" || key === "y") { const p = pair(rest); if (p) { ymin = p[0]; ymax = p[1]; } return; }
+        if (key.indexOf("asymptote") === 0) {
+          rest.split(/,|;/).forEach(function (s) {
+            const v = evalNum(s.trim().replace(/^x\s*=\s*/i, ""));
+            if (v != null) asym.push(v);
+          });
+          piX = piX || /\bpi\b/i.test(rest);
+          return;
+        }
+      }
       if (/x/i.test(line)) { try { fns.push({ f: compileExpr(line), color: colors[fns.length % colors.length] }); } catch (e) { /* skip */ } }
     });
     if (xmin == null || xmax == null || !(xmax > xmin)) { xmin = -5; xmax = 5; }
-    return { fns: fns, xmin: xmin, xmax: xmax, ymin: ymin, ymax: ymax };
+    return { fns: fns, xmin: xmin, xmax: xmax, ymin: ymin, ymax: ymax, asym: asym, piX: piX };
   }
 
   function plotFmt(n) { n = Math.round(n * 1000) / 1000; if (Object.is(n, -0)) n = 0; return String(n); }
+  // Label a tick that lives on a pi/2 lattice: π/2, π, 3π/2, 2π, ...
+  function plotFmtPi(t) {
+    const n = Math.round(t / (Math.PI / 2));
+    if (n === 0) return "0";
+    const sign = n < 0 ? "-" : "";
+    const a = Math.abs(n);
+    if (a % 2 === 0) { const k = a / 2; return sign + (k === 1 ? "π" : k + "π"); }
+    return sign + (a === 1 ? "π/2" : a + "π/2");
+  }
   function niceStep(span, target) {
     const raw = span / Math.max(1, target);
     const mag = Math.pow(10, Math.floor(Math.log10(raw)));
     const f = raw / mag;
     return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * mag;
   }
+
+  let plotClipId = 0;
 
   function buildPlotSVG(spec) {
     let parsed;
@@ -723,12 +757,16 @@
     const axisX = (xmin <= 0 && xmax >= 0) ? sx(0) : (xmin > 0 ? mL : mL + iw);
     const axisY = (ymin <= 0 && ymax >= 0) ? sy(0) : (ymin > 0 ? mT + ih : mT);
     const yLabelRight = axisX < mL + 16;
-    const xs = niceStep(xmax - xmin, 8), ys = niceStep(ymax - ymin, 6);
+    // On a pi-based domain (trig graphs) tick in steps of π/2 with π labels,
+    // the way it's done in class — 1.57, 3.14 ticks would just confuse.
+    const piX = parsed.piX;
+    const xs = piX ? ((xmax - xmin) > 4 * Math.PI + 0.1 ? Math.PI : Math.PI / 2) : niceStep(xmax - xmin, 8);
+    const ys = niceStep(ymax - ymin, 6);
     let g = "";
-    for (let t = Math.ceil(xmin / xs) * xs; t <= xmax + 1e-9; t += xs) {
+    for (let t = Math.ceil((xmin - 1e-9) / xs) * xs; t <= xmax + 1e-9; t += xs) {
       const px = sx(t);
       g += '<line x1="' + px.toFixed(1) + '" y1="' + mT + '" x2="' + px.toFixed(1) + '" y2="' + (mT + ih) + '" stroke="#e7edf5" stroke-width="1"/>';
-      if (Math.abs(t) > 1e-9) g += '<text x="' + px.toFixed(1) + '" y="' + (axisY + 13).toFixed(1) + '" font-size="10" fill="#4a5568" text-anchor="middle" font-family="sans-serif">' + plotFmt(t) + '</text>';
+      if (Math.abs(t) > 1e-9) g += '<text x="' + px.toFixed(1) + '" y="' + (axisY + 13).toFixed(1) + '" font-size="10" fill="#4a5568" text-anchor="middle" font-family="sans-serif">' + (piX ? plotFmtPi(t) : plotFmt(t)) + '</text>';
     }
     for (let t = Math.ceil(ymin / ys) * ys; t <= ymax + 1e-9; t += ys) {
       const py = sy(t);
@@ -737,6 +775,14 @@
     }
     g += '<line x1="' + mL + '" y1="' + axisY.toFixed(1) + '" x2="' + (mL + iw) + '" y2="' + axisY.toFixed(1) + '" stroke="#33415a" stroke-width="1.5"/>';
     g += '<line x1="' + axisX.toFixed(1) + '" y1="' + mT + '" x2="' + axisX.toFixed(1) + '" y2="' + (mT + ih) + '" stroke="#33415a" stroke-width="1.5"/>';
+    // Dashed vertical asymptotes (e.g. tan at ±π/2) — drawn like on the board.
+    (parsed.asym || []).forEach(function (ax) {
+      if (ax < xmin - 1e-9 || ax > xmax + 1e-9) return;
+      g += '<line x1="' + sx(ax).toFixed(1) + '" y1="' + mT + '" x2="' + sx(ax).toFixed(1) + '" y2="' + (mT + ih) + '" stroke="#8f9bb0" stroke-width="1.4" stroke-dasharray="6 4"/>';
+    });
+    const clipId = "lsplotclip" + (plotClipId++);
+    g += '<defs><clipPath id="' + clipId + '"><rect x="' + mL + '" y="' + mT + '" width="' + iw + '" height="' + ih + '"/></clipPath></defs>';
+    let curves = "";
     const outLo = ymin - (ymax - ymin) * 1.5, outHi = ymax + (ymax - ymin) * 1.5;
     series.forEach(function (s) {
       let d = "", pen = false;
@@ -745,8 +791,9 @@
         if (!isFinite(y) || y < outLo || y > outHi) { pen = false; return; }
         d += (pen ? "L" : "M") + sx(p[0]).toFixed(1) + " " + sy(y).toFixed(1); pen = true;
       });
-      if (d) g += '<path d="' + d + '" fill="none" stroke="' + s.color + '" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>';
+      if (d) curves += '<path d="' + d + '" fill="none" stroke="' + s.color + '" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>';
     });
+    g += '<g clip-path="url(#' + clipId + ')">' + curves + "</g>";
     g += '<text x="' + (axisX - 4).toFixed(1) + '" y="' + (axisY + 13).toFixed(1) + '" font-size="10" fill="#4a5568" text-anchor="end" font-family="sans-serif">0</text>';
     g += '<text x="' + (mL + iw + 3) + '" y="' + (axisY - 4).toFixed(1) + '" font-size="12" fill="#33415a" font-style="italic" font-family="sans-serif">x</text>';
     g += '<text x="' + (axisX + 5).toFixed(1) + '" y="' + (mT + 1) + '" font-size="12" fill="#33415a" font-style="italic" font-family="sans-serif">y</text>';
@@ -935,6 +982,21 @@
   // Build the messages array sent to Claude. Photos are attached to the CURRENT
   // turn only (via `images`, full base64) — older turns are sent as text so a
   // long history of photos doesn't blow up cost or the request size.
+  // Replace figures in PAST assistant turns with short placeholders before
+  // sending history to the model. Two reasons: raw SVG in history teaches the
+  // model to keep hand-drawing graphs (which it can't do accurately) even when
+  // the system prompt says to use ```plot; and figure markup is a lot of
+  // tokens the model doesn't need to see again.
+  function stripFigures(text) {
+    if (!text || text.indexOf("```") === -1) return text;
+    return text
+      .replace(/```plot\s*([\s\S]*?)```/gi, function (_, spec) {
+        const m = String(spec).match(/^\s*(?:y|f(?:\(x\))?)\s*=[^\n]*/im);
+        return "[graph plotted" + (m ? " of " + m[0].trim() : "") + "]";
+      })
+      .replace(/```svg[\s\S]*?```/gi, "[diagram shown]");
+  }
+
   function buildApiMessages(msgs, images) {
     const out = msgs.map(function (m, idx) {
       const isLast = idx === msgs.length - 1;
@@ -948,7 +1010,7 @@
       if (m.images && m.images.length) {
         return { role: m.role, content: (m.content ? m.content + " " : "") + "[photo attached earlier]" };
       }
-      return { role: m.role, content: m.content };
+      return { role: m.role, content: m.role === "assistant" ? stripFigures(m.content) : m.content };
     });
     return out.slice(-HISTORY_SENT);
   }
