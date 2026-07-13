@@ -48,6 +48,7 @@ Two important billing facts:
 | `mock-proxy.js` | Local fake tutor brain — test the app with no API key (see Local development) |
 | `config.js` | Proxy URL, ElevenLabs agent ID, daily caps, starter questions |
 | `styles.css` | All styling |
+| `SECURITY.md` | **Read before going public** — threat model + a dashboard checklist (spend cap, rate limiting, Turnstile) |
 
 ---
 

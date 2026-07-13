@@ -3,6 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Content-Security-Policy: locks down where code, data and connections can
+       come from, so a script-injection can't exfiltrate data or load a rogue
+       script. connect-src is limited to the Claude worker + ElevenLabs voice;
+       if you change your worker URL, update it here too. (frame-ancestors /
+       HSTS are set as HTTP headers by GitHub Pages, not here.) -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://challenges.cloudflare.com https://*.elevenlabs.io; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' data: https://cdn.jsdelivr.net https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob: https://*.elevenlabs.io; connect-src 'self' https://logicsmith-tutor.cs1415319.workers.dev https://*.elevenlabs.io wss://*.elevenlabs.io https://*.livekit.cloud wss://*.livekit.cloud https://challenges.cloudflare.com; frame-src https://*.elevenlabs.io https://challenges.cloudflare.com; worker-src 'self' blob:" />
   <title>LogiCSmith — Ask your tutor</title>
   <meta name="description" content="LogiCSmith is your personal English, Maths & Science tutor for Singapore MOE students — built on Teacher CS's real teaching methods. Chat with it or call it, like your own tutor." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -15,7 +21,7 @@
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
   <!-- ?v= busts browser/CDN caches — bump it whenever these files change,
        or students' devices may keep running the old code for days. -->
-  <link rel="stylesheet" href="styles.css?v=2" />
+  <link rel="stylesheet" href="styles.css?v=3" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔨</text></svg>" />
   <!-- LogiCSmith uses a single deep-navy theme (matches the logo). -->
   <script>document.documentElement.setAttribute("data-theme", "dark");</script>
@@ -178,9 +184,9 @@
 
   <div id="toast" hidden></div>
 
-  <script src="config.js?v=2"></script>
-  <script src="prompt.js?v=2"></script>
-  <script src="script.js?v=2"></script>
+  <script src="config.js?v=3"></script>
+  <script src="prompt.js?v=3"></script>
+  <script src="script.js?v=3"></script>
   <script src="https://unpkg.com/@elevenlabs/convai-widget-embed" async type="text/javascript"></script>
 </body>
 </html>

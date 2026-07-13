@@ -28,6 +28,12 @@ const LOGICSMITH_CONFIG = {
 
   agentId: "agent_4501kwxfp7emfxtb957xknpf6xqt",
 
+  // Cloudflare Turnstile (bot/human check) — anti-abuse for the Claude proxy.
+  // Leave "" to disable. To enable: create a Turnstile widget in Cloudflare,
+  // put the SECRET on the worker (TURNSTILE_SECRET) and the SITE KEY here.
+  // See SECURITY.md. (Frontend wiring is added when you switch this on.)
+  turnstileSiteKey: "",
+
   dailyTokenBudget: 60000,
   maxImagesPerMessage: 4,
   dailyLimitMinutes: 1,
