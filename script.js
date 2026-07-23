@@ -889,13 +889,17 @@
   async function streamReply(systemPrompt, messages, onDelta, opts) {
     const system = [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }];
     if (opts && opts.extraSystem) system.push({ type: "text", text: opts.extraSystem });
+    const reqBody = {
+      system: system,
+      messages: messages.slice(-HISTORY_SENT),
+    };
+    // Optional: the tutor (worker) can log questions if you enable a database.
+    // We pass who/what so the log is useful; it's ignored unless logging is on.
+    if (opts && opts.meta) reqBody.meta = opts.meta;
     const res = await fetch(cfg.tutorProxyUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        system: system,
-        messages: messages.slice(-HISTORY_SENT),
-      }),
+      body: JSON.stringify(reqBody),
     });
     if (!res.ok) {
       let detail = "";
@@ -1041,7 +1045,8 @@
           reply += delta;
           renderMessageText(bubble, reply);
           if (speaker) speaker.feed(reply);
-        }
+        },
+        { meta: { name: profile.name || "", level: profile.level || "", subject: profile.subjects || "" } }
       );
       if (speaker) speaker.flush(); // speak any trailing partial sentence
       finalizeMessage(bubble, reply); // render diagrams + formulas once complete

@@ -84,6 +84,33 @@ personal details.
 
 ---
 
+## Optional: the question log (see what students ask)
+
+Off by default. When enabled, the worker records each **question + the tutor's
+answer** (with the student's **nickname, level, subject and timestamp**) so you
+can review what to teach. **Because your users are minors, disclose it** — the
+app's privacy note already says *"your tutor may review the questions you ask to
+improve lessons."* Rows auto-delete after `LOG_RETENTION_DAYS` (default 30).
+
+**Enable it (Cloudflare):**
+1. **D1 → Create database** (e.g. `logicsmith-log`). Free tier is plenty.
+2. Your worker → **Settings → Bindings → Add → D1 database**: variable name
+   **`LOG_DB`**, pick that database.
+3. Worker → **Settings → Variables and Secrets → Add secret** **`ADMIN_KEY`** —
+   a long random password (this protects the viewer).
+4. (Optional) variable `LOG_RETENTION_DAYS` (default 30).
+5. **Deploy.** The table is created automatically on the first logged question.
+
+**View them:** open `https://<your-worker-url>/admin` in a browser. It asks for a
+login — username **`admin`**, password your **`ADMIN_KEY`**. You get a searchable
+table (filter by subject or keyword). Keep `ADMIN_KEY` private; anyone with it can
+read the log.
+
+**Turn it off / wipe it:** remove the `LOG_DB` binding (logging stops) and/or drop
+the `logs` table in the D1 console.
+
+---
+
 ## Residual risks (by design — decide if they're acceptable)
 
 - **Open access / no login.** Anyone with the link can use it. That's the current
@@ -92,9 +119,12 @@ personal details.
 - **The in-app "🔋 % left today" cap is a soft, per-device guide only** — a user
   can reset it by clearing browser data. Your real cost ceiling is the Anthropic
   monthly limit + rate limiting above, not this number.
-- **Chats are stored unencrypted in the browser's localStorage.** No PII beyond a
-  nickname is collected, but anyone with physical access to an unlocked device
-  could read that device's chats. Nothing is synced to a server you run.
+- **Chats are stored unencrypted in the browser's localStorage.** Anyone with
+  physical access to an unlocked device could read that device's chats.
+- **If the question log is enabled** (above), questions + answers + nicknames are
+  stored in your Cloudflare D1 and readable by anyone who has your `ADMIN_KEY`.
+  Keep that key private, keep retention short, and disclose the logging to
+  students/parents. If it's disabled (no `LOG_DB`), nothing is synced anywhere.
 - **Prompt content still goes to Anthropic** to generate answers (that's how the
   tutor works). Anthropic's API data-use terms apply.
 
