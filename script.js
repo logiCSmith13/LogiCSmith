@@ -982,21 +982,11 @@
   // Build the messages array sent to Claude. Photos are attached to the CURRENT
   // turn only (via `images`, full base64) — older turns are sent as text so a
   // long history of photos doesn't blow up cost or the request size.
-  // Replace figures in PAST assistant turns with short placeholders before
-  // sending history to the model. Two reasons: raw SVG in history teaches the
-  // model to keep hand-drawing graphs (which it can't do accurately) even when
-  // the system prompt says to use ```plot; and figure markup is a lot of
-  // tokens the model doesn't need to see again.
-  function stripFigures(text) {
-    if (!text || text.indexOf("```") === -1) return text;
-    return text
-      .replace(/```plot\s*([\s\S]*?)```/gi, function (_, spec) {
-        const m = String(spec).match(/^\s*(?:y|f(?:\(x\))?)\s*=[^\n]*/im);
-        return "[graph plotted" + (m ? " of " + m[0].trim() : "") + "]";
-      })
-      .replace(/```svg[\s\S]*?```/gi, "[diagram shown]");
-  }
-
+  // NOTE: past ```plot / ```svg blocks are kept VERBATIM in history on purpose.
+  // They're compact and act as positive examples so the model keeps emitting
+  // real plot/diagram blocks. (An earlier version replaced them with a text
+  // placeholder like "[graph plotted...]" — the model then imitated that text
+  // instead of drawing, so graphs stopped rendering. Don't do that.)
   function buildApiMessages(msgs, images) {
     const out = msgs.map(function (m, idx) {
       const isLast = idx === msgs.length - 1;
@@ -1010,7 +1000,7 @@
       if (m.images && m.images.length) {
         return { role: m.role, content: (m.content ? m.content + " " : "") + "[photo attached earlier]" };
       }
-      return { role: m.role, content: m.role === "assistant" ? stripFigures(m.content) : m.content };
+      return { role: m.role, content: m.content };
     });
     return out.slice(-HISTORY_SENT);
   }
