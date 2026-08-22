@@ -940,7 +940,7 @@
     const decoder = new TextDecoder();
     let buf = "";
     let apiError = null;
-    const usage = { inputTokens: 0, outputTokens: 0 };
+    const usage = { inputTokens: 0, outputTokens: 0, stopReason: "" };
 
     while (true) {
       const chunk = await reader.read();
@@ -959,8 +959,11 @@
           } else if (ev.type === "message_start" && ev.message && ev.message.usage) {
             // uncached input (photos land here in full) — cached reads are cheap, so skip
             usage.inputTokens = ev.message.usage.input_tokens || 0;
-          } else if (ev.type === "message_delta" && ev.usage && ev.usage.output_tokens != null) {
-            usage.outputTokens = ev.usage.output_tokens; // cumulative
+          } else if (ev.type === "message_delta") {
+            if (ev.usage && ev.usage.output_tokens != null) usage.outputTokens = ev.usage.output_tokens; // cumulative
+            // Why the model stopped — the only clue we get when a reply comes
+            // back empty (e.g. "refusal" or "max_tokens").
+            if (ev.delta && ev.delta.stop_reason) usage.stopReason = ev.delta.stop_reason;
           } else if (ev.type === "error" && ev.error) {
             apiError = ev.error.message || "The tutor hit an error.";
           }
@@ -1062,6 +1065,28 @@
     return out.slice(-HISTORY_SENT);
   }
 
+  // A photographed worksheet is someone else's copyrighted page, and the model
+  // will return an EMPTY reply rather than reproduce it. That's the right call —
+  // but the useful tutoring answer is to teach from it and draw an ORIGINAL
+  // version, so we retry once with this steer before giving up.
+  const REDRAW_HINT =
+    "The student has photographed a page from a worksheet or textbook. Do NOT reproduce that page, its " +
+    "wording or its layout verbatim. Instead teach from it: say in your own words what the diagram shows, " +
+    "then draw your OWN clean, original diagram of the same kind (e.g. a probability tree with the stages " +
+    "and probabilities the student can read off their sheet) and work through the thinking with them.";
+
+  function emptyReplyMessage(stopReason) {
+    if (stopReason === "refusal") {
+      return "⚠️ I can't copy that worksheet page directly — it's someone else's material. " +
+        "Ask me to **draw my own version** of the same diagram (tell me the stages and the probabilities), " +
+        "and I'll draw it out clearly and walk you through it.";
+    }
+    if (stopReason === "max_tokens") {
+      return "⚠️ That answer ran too long and got cut off before anything came through. Ask for one part of it at a time.";
+    }
+    return "⚠️ The tutor sent back an empty reply. Please ask again.";
+  }
+
   async function sendMessage(profile, text) {
     const images = pendingImages.slice();
     if (sending || (!text.trim() && !images.length) || !chatConfigured || chatLimitReached()) return;
@@ -1091,16 +1116,29 @@
     let reply = "";
     const speaker = readAloudOn() ? makeSpeaker() : null; // read the reply aloud?
     try {
-      const usage = await streamReply(
-        P.buildSystemPrompt(profile),
-        buildApiMessages(msgs, images),
-        function (delta) {
-          reply += delta;
-          renderMessageText(bubble, reply);
-          if (speaker) speaker.feed(reply);
-        },
-        { meta: { name: profile.name || "", level: profile.level || "", subject: profile.subjects || "" } }
-      );
+      const sysPrompt = P.buildSystemPrompt(profile);
+      const apiMsgs = buildApiMessages(msgs, images);
+      const meta = { name: profile.name || "", level: profile.level || "", subject: profile.subjects || "" };
+      const onDelta = function (delta) {
+        reply += delta;
+        renderMessageText(bubble, reply);
+        if (speaker) speaker.feed(reply);
+      };
+
+      let usage = await streamReply(sysPrompt, apiMsgs, onDelta, { meta: meta });
+
+      // Empty completion (typically the model declining to copy a photographed
+      // worksheet). Retry ONCE, steering it to teach and draw its own version.
+      if (!reply.trim()) {
+        const retry = await streamReply(sysPrompt, apiMsgs, onDelta, { meta: meta, extraSystem: REDRAW_HINT });
+        usage = {
+          inputTokens: (usage.inputTokens || 0) + (retry.inputTokens || 0),
+          outputTokens: (usage.outputTokens || 0) + (retry.outputTokens || 0),
+          stopReason: retry.stopReason || usage.stopReason,
+        };
+      }
+      if (!reply.trim()) reply = emptyReplyMessage(usage.stopReason);
+
       if (speaker) speaker.flush(); // speak any trailing partial sentence
       finalizeMessage(bubble, reply); // render diagrams + formulas once complete
       // Re-anchor now that the full reply exists below the question: pins the
