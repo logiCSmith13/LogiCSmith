@@ -35,7 +35,10 @@
 // ============================================================
 
 const MAX_BODY_BYTES = 3 * 1024 * 1024; // 3 MB — enough for a few photos, not abuse
-const MAX_OUTPUT_TOKENS = 2048;         // cap the answer length (cost ceiling)
+// Answer-length cap. You only pay for tokens actually generated, so a generous
+// ceiling costs nothing extra for normal short replies — but 2048 was too small
+// for a detailed diagram (a multi-stage probability tree got cut off mid-tag).
+const MAX_OUTPUT_TOKENS = 8000;
 const MAX_HISTORY = 30;                  // messages forwarded per request
 const MAX_TEXT_CHARS = 12000;            // per text part
 const MAX_SYSTEM_CHARS = 60000;          // teaching prompt has headroom; blocks a novel

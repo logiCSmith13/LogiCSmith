@@ -487,6 +487,12 @@
   // ---------- chat rendering ----------
   // renderMessageText: fast, safe partial render used WHILE a reply streams.
   function renderMessageText(el, text) {
+    // A figure is code until it's finished — never show raw SVG/plot source to
+    // a student. Swap finished and still-arriving blocks for a "drawing" note;
+    // finalizeMessage renders the real picture once the reply completes.
+    text = String(text)
+      .replace(/```(?:svg|plot)\s*[\s\S]*?```/gi, "🖊️ drawing…")
+      .replace(/```(?:svg|plot)[\s\S]*$/i, "🖊️ drawing…");
     // minimal safe formatting: escape HTML, then **bold** and line breaks
     let html = text
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
@@ -824,7 +830,16 @@
   // diagrams + formulas. Used after streaming ends and when replaying history.
   function finalizeMessage(el, text) {
     const svgs = [];
-    let work = text.replace(/```plot\s*([\s\S]*?)```/gi, function (_, spec) {
+    // If the reply was cut off mid-figure (it hit the answer-length limit), the
+    // code fence never closed. Close it here so the partial diagram is salvaged
+    // below — otherwise raw SVG source gets dumped on the student.
+    let src = String(text), cutOff = false;
+    const openFence = /```(svg|plot)(?![\s\S]*```)/i.exec(src);
+    if (openFence) {
+      cutOff = true;
+      src += openFence[1].toLowerCase() === "svg" ? "\n</svg>\n```" : "\n```";
+    }
+    let work = src.replace(/```plot\s*([\s\S]*?)```/gi, function (_, spec) {
       const svg = buildPlotSVG(spec); // accurate, app-computed graph
       // A figure we can't build must NEVER silently vanish — if the reply was
       // mostly the figure, the student would just see an empty bubble.
@@ -846,6 +861,13 @@
       return '<div class="diagram">' + (fig && fig.html ? fig.html : "") + "</div>";
     });
     el.innerHTML = html;
+
+    if (cutOff) {
+      const n = document.createElement("p");
+      n.className = "figure-note";
+      n.textContent = "⚠️ That diagram was cut off — ask me to draw a simpler version.";
+      el.appendChild(n);
+    }
 
     // Belt-and-braces: never leave a completely empty bubble on screen.
     if (!el.textContent.trim() && !el.querySelector("svg, img")) {
