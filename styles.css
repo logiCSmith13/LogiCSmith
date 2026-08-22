@@ -688,6 +688,13 @@ textarea { resize: vertical; }
 }
 
 /* Tutor diagrams (SVG the tutor draws) + rendered formulas (KaTeX) */
+/* Shown when a figure couldn't be drawn — better than an empty bubble. */
+.figure-note {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  font-style: italic;
+  margin: 8px 0;
+}
 .diagram {
   margin: 10px auto;
   max-width: 520px;

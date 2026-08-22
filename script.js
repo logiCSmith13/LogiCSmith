@@ -531,13 +531,34 @@
     }
   }
 
+  // Strip disallowed attributes from ONE element (the whitelist scrub for
+  // children lives in scrubSVGNode; the root needs it too — an unscrubbed
+  // <svg onload="..."> would run when inserted via innerHTML).
+  function scrubSVGAttrs(el) {
+    Array.prototype.slice.call(el.attributes).forEach(function (a) {
+      const name = a.name.toLowerCase();
+      if (!SVG_ATTRS[name] || UNSAFE_ATTR_VALUE.test(a.value)) el.removeAttribute(a.name);
+    });
+  }
+
   function sanitizeSVG(svgString) {
     if (/<!doctype|<!entity|<\?/i.test(svgString)) return ""; // no DTD/entities/PIs
     try {
+      let root = null;
       const doc = new DOMParser().parseFromString(svgString, "image/svg+xml");
-      if (doc.getElementsByTagName("parsererror").length) return "";
-      const root = doc.documentElement;
-      if (!root || root.nodeName.toLowerCase() !== "svg") return "";
+      if (!doc.getElementsByTagName("parsererror").length &&
+          doc.documentElement && doc.documentElement.nodeName.toLowerCase() === "svg") {
+        root = doc.documentElement;
+      } else {
+        // Model-written SVG often isn't well-formed XML (unclosed tags, a bare
+        // "&", stray attributes). The HTML parser is lenient, so retry there
+        // instead of throwing away a perfectly good diagram. The whitelist
+        // scrub below still runs, so this doesn't weaken the security model.
+        const hdoc = new DOMParser().parseFromString("<div>" + svgString + "</div>", "text/html");
+        root = hdoc && hdoc.body ? hdoc.body.querySelector("svg") : null;
+      }
+      if (!root) return "";
+      scrubSVGAttrs(root);
       scrubSVGNode(root);
       return new XMLSerializer().serializeToString(root);
     } catch (e) {
@@ -805,14 +826,14 @@
     const svgs = [];
     let work = text.replace(/```plot\s*([\s\S]*?)```/gi, function (_, spec) {
       const svg = buildPlotSVG(spec); // accurate, app-computed graph
-      if (!svg) return "";
-      svgs.push(svg);
+      // A figure we can't build must NEVER silently vanish — if the reply was
+      // mostly the figure, the student would just see an empty bubble.
+      svgs.push(svg ? { html: svg } : { note: "⚠️ I couldn't draw that graph — ask me to try again." });
       return "SVG" + (svgs.length - 1) + "";
     });
     work = work.replace(/```svg\s*([\s\S]*?)```/gi, function (_, code) {
       const clean = sanitizeSVG(code.trim());
-      if (!clean) return ""; // drop anything unsafe or unparseable
-      svgs.push(clean);
+      svgs.push(clean ? { html: clean } : { note: "⚠️ That diagram didn't come out right — ask me to redraw it." });
       return "SVG" + (svgs.length - 1) + "";
     });
     let html = work
@@ -820,9 +841,16 @@
       .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
       .replace(/\n/g, "<br>");
     html = html.replace(/SVG(\d+)/g, function (_, i) {
-      return '<div class="diagram">' + svgs[+i] + "</div>";
+      const fig = svgs[+i];
+      if (fig && fig.note) return '<p class="figure-note">' + fig.note + "</p>";
+      return '<div class="diagram">' + (fig && fig.html ? fig.html : "") + "</div>";
     });
     el.innerHTML = html;
+
+    // Belt-and-braces: never leave a completely empty bubble on screen.
+    if (!el.textContent.trim() && !el.querySelector("svg, img")) {
+      el.innerHTML = '<p class="figure-note">⚠️ That reply didn\'t come through — please ask again.</p>';
+    }
 
     if (window.renderMathInElement) {
       try {
@@ -991,7 +1019,24 @@
   // real plot/diagram blocks. (An earlier version replaced them with a text
   // placeholder like "[graph plotted...]" — the model then imitated that text
   // instead of drawing, so graphs stopped rendering. Don't do that.)
+  // Recent photo turns keep their picture so follow-ups ("now redraw it",
+  // "can you generate it") can still SEE it. We re-send the stored thumbnail
+  // (small, cheap) rather than the full-size original.
+  const PHOTO_TURNS_KEPT = 2;
+
+  function dataUrlToImageBlock(u) {
+    const m = /^data:(image\/[a-z+]+);base64,(.+)$/i.exec(String(u || ""));
+    if (!m) return null;
+    return { type: "image", source: { type: "base64", media_type: m[1], data: m[2] } };
+  }
+
   function buildApiMessages(msgs, images) {
+    // Mark the most recent photo turns — those keep real image blocks.
+    const keepPhoto = {};
+    let kept = 0;
+    for (let i = msgs.length - 1; i >= 0 && kept < PHOTO_TURNS_KEPT; i--) {
+      if (msgs[i].images && msgs[i].images.length) { keepPhoto[i] = true; kept++; }
+    }
     const out = msgs.map(function (m, idx) {
       const isLast = idx === msgs.length - 1;
       if (isLast && images && images.length) {
@@ -1002,6 +1047,14 @@
         return { role: "user", content: content };
       }
       if (m.images && m.images.length) {
+        if (keepPhoto[idx]) {
+          const content = [];
+          m.images.forEach(function (u) { const b = dataUrlToImageBlock(u); if (b) content.push(b); });
+          if (content.length) {
+            content.push({ type: "text", text: m.content || "Please help me with this question." });
+            return { role: m.role, content: content };
+          }
+        }
         return { role: m.role, content: (m.content ? m.content + " " : "") + "[photo attached earlier]" };
       }
       return { role: m.role, content: m.content };
