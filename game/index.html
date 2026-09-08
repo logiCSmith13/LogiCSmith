@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FRACTURA — Reforge the Shattered Isles</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚒️</text></svg>" />
+</head>
+<body>
+  <header class="hud">
+    <div class="hud-brand"><span class="hud-logo">⚒️</span> FRACTURA <span class="hud-tag">prototype</span></div>
+    <div class="hud-stats">
+      <div class="hud-level"><span id="hud-level">Lv 1</span><div class="xpbar"><div id="hud-xp"></div></div></div>
+      <div class="hud-pill" title="Forge Coins">🪙 <span id="hud-coins">0</span></div>
+      <div class="hud-pill" title="Streak">🔥 <span id="hud-streak">0</span></div>
+    </div>
+    <nav class="hud-nav">
+      <button data-go="map">🗺️ Map</button>
+      <button data-go="codex">📜 Codex</button>
+      <button data-go="ledger">📊 Ledger</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Title -->
+    <section class="screen" id="screen-title">
+      <div class="hero">
+        <div class="hero-emblem">⚒️</div>
+        <h1>FRACTURA</h1>
+        <p class="hero-sub">Reforge the Shattered Isles</p>
+        <p class="hero-pitch">The world was shattered into <b>units</b>. Build them back — and discover that every bridge you rebuild is a PSLE question you can now solve.</p>
+        <div class="hero-actions">
+          <button class="btn-primary big" id="btn-start">▶ Enter Fractura</button>
+          <button class="btn-ghost" id="btn-parent">Parent? See the Forge Ledger</button>
+        </div>
+        <div class="hero-cards">
+          <div class="hcard"><b>🧱 Build = bar model</b>Stack unit blocks into bars. That IS the model drawing.</div>
+          <div class="hcard"><b>🧰 Gear = heuristics</b>Time Shard, Rewind Lens, Echo Scanner, Split Chisel…</div>
+          <div class="hcard"><b>🔥 Recipes = formulas</b>Craft area and volume on the Forge Bench.</div>
+          <div class="hcard"><b>🃏 Decode</b>Every solve flips a card: the exact exam question you just beat.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Map -->
+    <section class="screen" id="screen-map" hidden>
+      <div class="map-head">
+        <div>
+          <h2>The Shattered Isles</h2>
+          <p class="muted">Pick an isle. Each Rift is freshly generated — the numbers change, the thinking stays.</p>
+        </div>
+        <div class="map-actions">
+          <span class="pill" id="al-pill"></span>
+          <button class="btn-primary" id="btn-storm">⛈️ Daily Storm (5 Rifts)</button>
+        </div>
+      </div>
+      <div class="isles" id="isles"></div>
+    </section>
+
+    <!-- Rift -->
+    <section class="screen" id="screen-rift" hidden>
+      <div class="rift-head">
+        <div>
+          <div class="rift-isle" id="rift-isle"></div>
+          <div class="rift-gear muted" id="rift-gear"></div>
+        </div>
+        <span class="badge exam" id="rift-badge" hidden>📜 BLUEPRINT-FIRST · exam wording</span>
+        <button class="btn-ghost small" id="btn-abandon">✕ Leave Rift</button>
+      </div>
+      <p class="brief" id="rift-brief"></p>
+      <div class="forge" id="rift-area"></div>
+      <div class="feedback" id="feedback" aria-live="polite"></div>
+      <div class="steps" id="steps" hidden></div>
+    </section>
+
+    <!-- Decode -->
+    <section class="screen" id="screen-decode" hidden>
+      <h2>🃏 Decode</h2>
+      <p class="muted">You just solved this. Same picture, two languages.</p>
+      <div class="decode">
+        <div class="dcard game"><div class="dcard-title">In Fractura</div><div id="decode-game"></div></div>
+        <div class="dcard exam"><div class="dcard-title">In the PSLE paper</div><div id="decode-exam"></div></div>
+      </div>
+      <div class="reward" id="decode-reward"></div>
+      <div class="decode-actions">
+        <button class="btn-primary big" id="btn-next">Next Rift ➜</button>
+        <button class="btn-ghost" data-go="map">Back to the map</button>
+      </div>
+    </section>
+
+    <!-- Ledger (parent view) -->
+    <section class="screen" id="screen-ledger" hidden>
+      <h2>📊 Forge Ledger</h2>
+      <p class="muted">For parents and tutors. Independence means solved with no hints and no wrong tries.</p>
+      <div id="ledger"></div>
+    </section>
+
+    <!-- Codex -->
+    <section class="screen" id="screen-codex" hidden>
+      <h2>📜 Codex of Decoded Rifts</h2>
+      <p class="muted">Every card here is a real exam-style question you have already beaten.</p>
+      <div id="codex"></div>
+    </section>
+  </main>
+
+  <script src="engine/problems.js"></script>
+  <script src="engine/model.js"></script>
+  <script src="engine/mastery.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
