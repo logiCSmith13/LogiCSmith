@@ -37,6 +37,21 @@ Two important billing facts:
    API key there and add a small amount of credit (US$5–10 goes a long way for text
    tutoring). Set a monthly spend limit in the console so there are no surprises.
 
+## 🎮 FRACTURA — the game (prototype)
+
+`game/` holds the design and a playable vertical slice of **FRACTURA**, a PSLE maths game where
+building the world with unit blocks *is* drawing the bar model, heuristics are gear, and formulas are
+crafting recipes. Open `game/index.html` (or `https://logicsmith13.github.io/LogiCSmith/game/`).
+
+| File | Purpose |
+| --- | --- |
+| `game/DESIGN.md` | Game design document — genre decision, core loop, heuristics-as-gear, transfer ladder, parent Ledger, seasons, safety, milestones |
+| `game/ASTRA_PROMPT.md` | The master prompt + sprint prompts to hand to ASTRA to develop the production game |
+| `game/engine/problems.js` | Procedural PSLE Rift generators (7 heuristic families × 3 tiers), each with game hook + exam word problem |
+| `game/engine/model.js` | Validators for bar models, splits and formula recipes — the contract the 3D build must keep |
+| `game/engine/mastery.js` | Mastery, spaced repetition, XP, predicted AL band (placeholder) |
+| `game/game.js`, `game/index.html`, `game/styles.css` | Playable Forge Mode: map → Rift → Decode card, Daily Storm, parent Ledger, Codex |
+
 ## Files
 
 | File | Purpose |
